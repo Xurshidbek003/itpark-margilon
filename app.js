@@ -37,21 +37,32 @@
   ["kurslar", "davomat", "ustozlar", "faq", "boglanish"].forEach((id) => sectionObs.observe(document.getElementById(id)));
 
   /* ---------- courses ---------- */
+  // Rasm topilmasa — uni olib tashlaymiz, ostidagi pastel muqova ko'rinadi
+  document.addEventListener("error", (e) => {
+    if (e.target.tagName === "IMG" && e.target.hasAttribute("data-fallback")) e.target.remove();
+  }, true);
+  const img = (src, alt) => src ? `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" data-fallback style="position:relative;z-index:1" />` : "";
+  const CAT = { it: "IT", lang: "Til kursi", exam: "Imtihonga tayyorlov" };
+
   const coursesEl = $("#courses");
   const renderCourses = (filter = "all") => {
+    coursesEl.classList.toggle("courses--all", filter === "all");
     coursesEl.innerHTML = COURSES.filter((c) => filter === "all" || c.cat === filter).map((c, i) => `
-      <button class="course" style="--c:${c.color}; animation-delay:${i * 60}ms" data-course="${c.id}">
-        <div class="course__top">
-          <span class="course__icon">${icon(c.icon)}</span>
-          <span class="course__dur">${esc(c.duration)}</span>
+      <button class="course" style="--c:${c.color}; --soft:${c.soft || "#eef6f1"}; animation-delay:${i * 60}ms" data-course="${c.id}">
+        <div class="course__media">
+          <div class="cover"><span class="cover__icon">${icon(c.icon)}</span></div>
+          ${img(c.image, c.title)}
+          <div class="course__badges"><span class="cat">${CAT[c.cat] || ""}</span><span>${esc(c.duration)}</span></div>
         </div>
-        <h3>${esc(c.title)}</h3>
-        <span class="course__level">${esc(c.level)}</span>
-        <p class="course__desc">${esc(c.desc)}</p>
-        <div class="course__tags">${c.tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>
-        <div class="course__foot">
-          <div class="course__price"><b>${esc(c.price)} so'm</b><small>oyiga · ${esc(c.lessons)}</small></div>
-          <span class="course__go"><i class="i-arrow"></i></span>
+        <div class="course__body">
+          <h3>${esc(c.title)}</h3>
+          <span class="course__level">${esc(c.level)}</span>
+          <p class="course__desc">${esc(c.desc)}</p>
+          <div class="course__tags">${c.tags.map((t) => `<span>${esc(t)}</span>`).join("")}</div>
+          <div class="course__foot">
+            <div class="course__price"><b>${esc(c.price)} so'm</b><small>oyiga · ${esc(c.lessons)}</small></div>
+            <span class="course__go"><i class="i-arrow"></i></span>
+          </div>
         </div>
       </button>`).join("");
   };
@@ -73,12 +84,17 @@
   /* ---------- teachers ---------- */
   $("#teachers").innerHTML = TEACHERS.map((t) => {
     const c = courseById[t.course];
-    return `<article class="teacher reveal">
-      <span class="teacher__av" style="--c:${c ? c.color : "#10b981"}">${esc(initials(t.name))}</span>
-      <div>
+    return `<article class="teacher reveal" style="--c:${c ? c.color : "#10b981"}; --soft:${c && c.soft ? c.soft : "#eef6f1"}">
+      <div class="teacher__photo">
+        <div class="teacher__ph"><span>${esc(initials(t.name))}</span></div>
+        ${img(t.photo, t.name)}
+        <span class="teacher__exp">${esc(t.exp)} tajriba</span>
+        <a class="teacher__social" href="${esc(SITE.telegram)}" target="_blank" rel="noopener" aria-label="Telegram"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M21.5 4.5 2.8 11.7c-1 .4-1 1.6.1 1.9l4.7 1.5 1.8 5.6c.2.7 1.1.9 1.6.4l2.6-2.4 4.9 3.6c.6.4 1.4.1 1.6-.6l3.3-15.6c.2-1-.8-1.9-1.9-1.6ZM9.6 14.6l-.4 4 .1-.1L18 7.6Z"/></svg></a>
+      </div>
+      <div class="teacher__info">
         <h4>${esc(t.name)}</h4>
         <div class="teacher__role">${esc(t.role)}</div>
-        <div class="teacher__meta"><span>${esc(t.exp)} tajriba</span><span>${esc(t.note)}</span></div>
+        <div class="teacher__meta"><span>${esc(c ? c.title : "")}</span><span>${esc(t.note)}</span></div>
       </div>
     </article>`;
   }).join("");
@@ -125,7 +141,7 @@
       </div>
       <div class="res__main">
         <div class="ring" style="--p:0">
-          <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52"/><circle cx="60" cy="60" r="52" class="ring__val" style="stroke:${good ? "var(--em-2)" : "#fcd34d"}"/></svg>
+          <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52"/><circle cx="60" cy="60" r="52" class="ring__val" style="stroke:${good ? "var(--em)" : "var(--amber)"}"/></svg>
           <div class="ring__label"><b data-pct>0%</b><small>davomat</small></div>
         </div>
         <div class="res__nums">
@@ -137,7 +153,7 @@
       </div>
       <div class="res__label"><span>Oxirgi darslar</span><span>${total} ta</span></div>
       <div class="res__grid">${rec.log.map((s, i) => `<span class="s${s}" style="animation-delay:${i * 25}ms" title="${i + 1}-dars">${i + 1}</span>`).join("")}</div>
-      <div class="res__legend"><span><i style="background:#34d399"></i>Keldi</span><span><i style="background:#f87171"></i>Kelmadi</span><span><i style="background:#fcd34d"></i>Sababli</span></div>
+      <div class="res__legend"><span><i style="background:#9fe6c6"></i>Keldi</span><span><i style="background:#f5b5b5"></i>Kelmadi</span><span><i style="background:#f8dc8c"></i>Sababli</span></div>
       <div class="res__msg ${good ? "" : "is-warn"}">${good ? (isT ? "Ajoyib! Barcha darslar o'z vaqtida o'tkazilmoqda." : "Zo'r natija! Shu tarzda davom eting 💪") : "Davomat 85% dan past. Qoldirilgan darslarni ustoz bilan to'ldirib oling."}</div>
     </div>`;
     const ring = $(".res .ring", attResult), label = $("[data-pct]", attResult);
@@ -227,7 +243,7 @@
     openModal(`
       <h3>${c ? "Kursga yozilish" : "Ro'yxatdan o'tish"}</h3>
       <p class="muted">Ma'lumotlaringizni qoldiring — bepul sinov darsiga taklif qilamiz.</p>
-      ${c ? `<div class="modal__course" style="--c:${c.color}"><span class="course__icon">${icon(c.icon)}</span><div><b>${esc(c.title)}</b><small>${esc(c.duration)} · ${esc(c.price)} so'm / oy</small></div></div>` : ""}
+      ${c ? `<div class="modal__course" style="--c:${c.color}; --soft:${c.soft || "#eef6f1"}"><span class="modal__thumb"><span class="cover__icon" style="position:absolute;inset:0">${icon(c.icon)}</span>${img(c.image, c.title)}</span><div><b>${esc(c.title)}</b><small>${esc(c.duration)} · ${esc(c.price)} so'm / oy</small></div></div>` : ""}
       <form id="enrollForm" novalidate>
         <label class="field"><span>Ismingiz</span><input name="name" required placeholder="Ism Familiya" /></label>
         <label class="field"><span>Telefon raqam</span><input name="phone" required placeholder="+998 __ ___ __ __" inputmode="tel" /></label>
