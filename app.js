@@ -21,6 +21,14 @@
   $$("[data-tel]").forEach((el) => (el.href = "tel:" + SITE.phone.replace(/\s/g, "")));
   $$("[data-site-href]").forEach((el) => (el.href = SITE[el.dataset.siteHref] || "#"));
   $("#year").textContent = new Date().getFullYear();
+  if (Array.isArray(window.STATS)) {
+    $$(".stat").forEach((el, i) => {
+      const st = window.STATS[i]; if (!st) { el.remove(); return; }
+      $("[data-count]", el).dataset.count = Number(st.value) || 0;
+      $("span", el).textContent = st.suffix || "";
+      $("p", el).textContent = st.label || "";
+    });
+  }
 
   /* ---------- nav ---------- */
   const nav = $("#nav");
@@ -46,7 +54,6 @@
 
   const coursesEl = $("#courses");
   const renderCourses = (filter = "all") => {
-    coursesEl.classList.toggle("courses--all", filter === "all");
     coursesEl.innerHTML = COURSES.filter((c) => filter === "all" || c.cat === filter).map((c, i) => `
       <button class="course" style="--c:${c.color}; --soft:${c.soft || "#eef6f1"}; animation-delay:${i * 60}ms" data-course="${c.id}">
         <div class="course__media">
@@ -116,16 +123,26 @@
   }));
   $("#attForm").addEventListener("submit", (e) => { e.preventDefault(); checkAttendance(); });
 
-  function checkAttendance() {
+  async function checkAttendance() {
     const code = attCode.value.trim().toUpperCase().replace(/\s+/g, "");
-    const rec = ATTENDANCE[code];
+    let rec = ATTENDANCE[code];
+    if (window.sb && code) {
+      attResult.innerHTML = `<div class="att__empty"><div class="att__empty-icon"><i class="i-search"></i></div><p>Tekshirilmoqda...</p></div>`;
+      const types = [attType, attType === "student" ? "teacher" : "student"];
+      rec = null;
+      for (const tp of types) {
+        const { data, error } = await window.sb.rpc("check_attendance", { p_code: code, p_type: tp });
+        if (error) { attResult.innerHTML = `<div class="res res--error"><div class="att__empty-icon">!</div><b>Server bilan aloqa yo'q</b><p style="margin-top:8px;font-size:14px">Birozdan so'ng qayta urinib ko'ring.</p></div>`; return; }
+        if (data && data[0]) { rec = { ...data[0], group: data[0].grp, course: data[0].course_id, log: data[0].log || [] }; break; }
+      }
+    }
     if (!code || !rec || rec.type !== attType) {
       attField.classList.remove("is-error"); void attField.offsetWidth; attField.classList.add("is-error");
       const hint = rec && rec.type !== attType ? `Bu kod ${rec.type === "teacher" ? "ustoz" : "o'quvchi"}ga tegishli — yuqoridan to'g'ri turni tanlang.` : "Kodni tekshirib, qayta urinib ko'ring yoki administratorga murojaat qiling.";
       attResult.innerHTML = `<div class="res res--error"><div class="att__empty-icon">✕</div><b>${code ? "Kod topilmadi" : "Kodni kiriting"}</b><p style="margin-top:8px;font-size:14px">${hint}</p></div>`;
       return;
     }
-    const total = rec.log.length;
+    const total = rec.log.length || 1;
     const came = rec.log.filter((s) => s === 1).length;
     const missed = rec.log.filter((s) => s === 0).length;
     const excused = rec.log.filter((s) => s === 2).length;
@@ -185,6 +202,11 @@
 
   /* ---------- leads storage ---------- */
   const saveLead = (lead) => {
+    if (window.sb) {
+      const row = { type: lead.type, name: lead.name, phone: lead.phone, course: lead.course || null, time: lead.time || null, message: lead.message || null };
+      window.sb.from("leads").insert(row).then(({ error }) => { if (error) console.warn("Ariza yuborilmadi:", error.message); });
+      return;
+    }
     try {
       const all = JSON.parse(localStorage.getItem("itpark_leads") || "[]");
       all.push({ ...lead, at: new Date().toISOString() });

@@ -10,3 +10,8 @@ it.jpg, ingliz.jpg, matematika.jpg, koreys.jpg, nemis.jpg, sertifikat.jpg
 azizbek.jpg, madina.jpg, jasur.jpg, jiwoo.jpg, nodira.jpg, sardor.jpg
 
 Boshqa nom ishlatmoqchi bo'lsangiz, data.js dagi `image` / `photo` maydonini o'zgartiring.
+
+## Kurs rasmlari manbasi
+Barcha kurs rasmlari [Unsplash](https://unsplash.com/license) dan olingan (bepul, tijoriy foydalanish mumkin):
+it — FCHlYvR5gJI, ingliz — tZDtyUrYrFU, matematika — 0uKaXrG9zaQ, koreys — LZwPn12XDNo,
+nemis — mtfTz0FnwBw, sertifikat — BCBGahg0MH0 (unsplash.com/photos/<ID>).
