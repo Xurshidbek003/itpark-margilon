@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
   <!-- NAV -->
@@ -18,16 +18,16 @@
     <div class="container nav__inner">
       <a href="#top" class="brand" aria-label="IT Park Marg'ilon">
         <span class="brand__mark"><svg viewBox="0 0 32 32"><path d="M9 22V15M16 22V10M23 22v-5"/></svg></span>
-        <span class="brand__text"><b>IT Park</b><small>Marg'ilon</small></span>
+        <span class="brand__text"><b data-t="brand.name">IT Park</b><small data-t="brand.city">Marg'ilon</small></span>
       </a>
       <nav class="nav__links" id="navLinks">
-        <a href="#kurslar">Kurslar</a>
-        <a href="#davomat">Davomat</a>
-        <a href="#ustozlar">Ustozlar</a>
-        <a href="#faq">Savollar</a>
-        <a href="#boglanish">Bog'lanish</a>
+        <a href="#kurslar" data-t="nav.courses">Kurslar</a>
+        <a href="#davomat" data-t="nav.attendance">Davomat</a>
+        <a href="#ustozlar" data-t="nav.teachers">Ustozlar</a>
+        <a href="#faq" data-t="nav.faq">Savollar</a>
+        <a href="#boglanish" data-t="nav.contact">Bog'lanish</a>
       </nav>
-      <a href="#" class="btn btn--primary btn--sm nav__cta" data-enroll>Ro'yxatdan o'tish <i class="i-arrow"></i></a>
+      <a href="#" class="btn btn--primary btn--sm nav__cta" data-enroll><span data-t="nav.cta">Ro'yxatdan o'tish</span> <i class="i-arrow"></i></a>
       <button class="burger" id="burger" aria-label="Menyu"><span></span><span></span></button>
     </div>
   </header>
@@ -40,16 +40,16 @@
       </div>
       <div class="container hero__inner">
         <div class="hero__copy">
-          <span class="pill reveal"><span class="pill__dot"></span> 2026 qabul ochiq · Sinov darsi bepul</span>
-          <h1 class="hero__title reveal">Kelajak kasblari va tillarni <span class="grad">Marg'ilonda</span> o'rganing.</h1>
-          <p class="hero__lead reveal">IT va dasturlash, ingliz, nemis va koreys tillari, matematika — barchasi bir markazda. Shaxsiy yondashuv, onlayn davomat va kuchli ustozlar jamoasi.</p>
+          <span class="pill reveal"><span class="pill__dot"></span> <span data-t="hero.pill">2026 qabul ochiq · Sinov darsi bepul</span></span>
+          <h1 class="hero__title reveal"><span data-t="hero.title1">Kelajak kasblari va tillarni</span> <span class="grad" data-t="hero.title2">Marg'ilonda</span> <span data-t="hero.title3">o'rganing.</span></h1>
+          <p class="hero__lead reveal" data-t="hero.lead">IT va dasturlash, ingliz, nemis va koreys tillari, matematika — barchasi bir markazda. Shaxsiy yondashuv, onlayn davomat va kuchli ustozlar jamoasi.</p>
           <div class="hero__actions reveal">
-            <a href="#" class="btn btn--primary btn--lg" data-enroll>Kursga yozilish <i class="i-arrow"></i></a>
-            <a href="#kurslar" class="btn btn--ghost btn--lg">Kurslarni ko'rish</a>
+            <a href="#" class="btn btn--primary btn--lg" data-enroll><span data-t="hero.btn1">Kursga yozilish</span> <i class="i-arrow"></i></a>
+            <a href="#kurslar" class="btn btn--ghost btn--lg" data-t="hero.btn2">Kurslarni ko'rish</a>
           </div>
           <ul class="hero__meta reveal">
-            <li><i class="i-pin"></i> Marg'ilon, Farg'ona viloyati</li>
-            <li><i class="i-check"></i> Onlayn davomat tizimi</li>
+            <li><i class="i-pin"></i> <span data-t="hero.meta1">Marg'ilon, Farg'ona viloyati</span></li>
+            <li><i class="i-check"></i> <span data-t="hero.meta2">Onlayn davomat tizimi</span></li>
           </ul>
         </div>
 
@@ -57,39 +57,39 @@
           <div class="dash">
             <div class="dash__head">
               <span class="dash__dots"><i></i><i></i><i></i></span>
-              <span class="dash__title">Davomat · MG-1001</span>
-              <span class="badge badge--live">● Live</span>
+              <span class="dash__title" data-t="dash.title">Davomat · MG-1001</span>
+              <span class="badge badge--live" data-t="dash.live">● Live</span>
             </div>
             <div class="dash__body">
               <div class="ring" style="--p:88">
                 <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52"/><circle cx="60" cy="60" r="52" class="ring__val"/></svg>
-                <div class="ring__label"><b>88%</b><small>davomat</small></div>
+                <div class="ring__label"><b>88%</b><small data-t="dash.ring">davomat</small></div>
               </div>
               <div class="dash__stats">
-                <div><small>Keldi</small><b>14</b></div>
-                <div><small>Kelmadi</small><b>2</b></div>
-                <div><small>Guruh</small><b>IT-24</b></div>
+                <div><small data-t="dash.came">Keldi</small><b>14</b></div>
+                <div><small data-t="dash.missed">Kelmadi</small><b>2</b></div>
+                <div><small data-t="dash.group">Guruh</small><b>IT-24</b></div>
               </div>
             </div>
             <div class="dash__bars">
               <span style="--h:70"></span><span style="--h:90"></span><span style="--h:55"></span><span style="--h:100"></span><span style="--h:80"></span><span style="--h:95"></span><span style="--h:65"></span><span style="--h:100"></span><span style="--h:85"></span><span style="--h:92"></span>
             </div>
           </div>
-          <div class="float-card float-card--a"><span class="fc__icon">🎓</span><div><b>1 200+</b><small>bitiruvchi</small></div></div>
-          <div class="float-card float-card--b"><span class="fc__icon">⭐</span><div><b>4.9 / 5</b><small>o'quvchilar bahosi</small></div></div>
+          <div class="float-card float-card--a"><span class="fc__icon">🎓</span><div><b data-t="float.a1">1 200+</b><small data-t="float.a2">bitiruvchi</small></div></div>
+          <div class="float-card float-card--b"><span class="fc__icon">⭐</span><div><b data-t="float.b1">4.9 / 5</b><small data-t="float.b2">o'quvchilar bahosi</small></div></div>
         </div>
       </div>
 
       <div class="marquee" aria-hidden="true">
         <div class="marquee__track">
-          <span>IT & Dasturlash</span><span>Ingliz tili</span><span>Matematika</span><span>Koreys tili</span><span>Nemis tili</span><span>Milliy sertifikat</span>
-          <span>IT & Dasturlash</span><span>Ingliz tili</span><span>Matematika</span><span>Koreys tili</span><span>Nemis tili</span><span>Milliy sertifikat</span>
+          <span data-t="marquee.1">IT & Dasturlash</span><span data-t="marquee.2">Ingliz tili</span><span data-t="marquee.3">Matematika</span><span data-t="marquee.4">Koreys tili</span><span data-t="marquee.5">Nemis tili</span><span data-t="marquee.6">Milliy sertifikat</span>
+          <span data-t="marquee.1">IT & Dasturlash</span><span data-t="marquee.2">Ingliz tili</span><span data-t="marquee.3">Matematika</span><span data-t="marquee.4">Koreys tili</span><span data-t="marquee.5">Nemis tili</span><span data-t="marquee.6">Milliy sertifikat</span>
         </div>
       </div>
     </section>
 
-    <!-- STATS -->
-    <section class="stats container">
+    <!-- STATS (raqamlar admin panel → Sozlamalar bo'limidan boshqariladi) -->
+    <section class="stats container" data-managed="Sozlamalar">
       <div class="stat reveal"><b data-count="1200">0</b><span>+</span><p>bitiruvchilar</p></div>
       <div class="stat reveal"><b data-count="25">0</b><span>+</span><p>tajribali ustozlar</p></div>
       <div class="stat reveal"><b data-count="6">0</b><span></span><p>yo'nalishlar</p></div>
@@ -101,17 +101,17 @@
       <div class="container">
         <div class="section__head">
           <div>
-            <span class="eyebrow">01 — Kurslarimiz</span>
-            <h2 class="h2">Har bir maqsad uchun <em>to'g'ri kurs</em></h2>
+            <span class="eyebrow" data-t="courses.eyebrow">01 — Kurslarimiz</span>
+            <h2 class="h2"><span data-t="courses.title1">Har bir maqsad uchun</span> <em data-t="courses.title2">to'g'ri kurs</em></h2>
           </div>
           <div class="tabs" role="tablist" id="courseTabs">
-            <button class="tab is-active" data-filter="all">Barchasi</button>
-            <button class="tab" data-filter="it">IT</button>
-            <button class="tab" data-filter="lang">Tillar</button>
-            <button class="tab" data-filter="exam">Imtihonlar</button>
+            <button class="tab is-active" data-filter="all" data-t="courses.tabAll">Barchasi</button>
+            <button class="tab" data-filter="it" data-t="courses.tabIt">IT</button>
+            <button class="tab" data-filter="lang" data-t="courses.tabLang">Tillar</button>
+            <button class="tab" data-filter="exam" data-t="courses.tabExam">Imtihonlar</button>
           </div>
         </div>
-        <div class="courses" id="courses"></div>
+        <div class="courses" id="courses" data-managed="Kurslar"></div>
       </div>
     </section>
 
@@ -119,22 +119,22 @@
     <section class="section section--dark" id="davomat">
       <div class="container att">
         <div class="att__copy">
-          <span class="eyebrow eyebrow--light">02 — Davomat</span>
-          <h2 class="h2 h2--light">Davomatni bir zumda <em>tekshiring</em></h2>
-          <p class="muted-light">Shaxsiy kodingizni kiriting — davomat foizingiz, kelgan va kelmay qolgan darslaringiz darhol ekranda. Ustozlar uchun ham ishlaydi.</p>
+          <span class="eyebrow eyebrow--light" data-t="att.eyebrow">02 — Davomat</span>
+          <h2 class="h2 h2--light"><span data-t="att.title1">Davomatni bir zumda</span> <em data-t="att.title2">tekshiring</em></h2>
+          <p class="muted-light" data-t="att.lead">Shaxsiy kodingizni kiriting — davomat foizingiz, kelgan va kelmay qolgan darslaringiz darhol ekranda. Ustozlar uchun ham ishlaydi.</p>
 
           <form class="att__form" id="attForm" autocomplete="off">
             <div class="seg" id="attType">
-              <button type="button" class="seg__btn is-active" data-type="student">O'quvchi</button>
-              <button type="button" class="seg__btn" data-type="teacher">Ustoz</button>
+              <button type="button" class="seg__btn is-active" data-type="student" data-t="att.student">O'quvchi</button>
+              <button type="button" class="seg__btn" data-type="teacher" data-t="att.teacher">Ustoz</button>
               <span class="seg__thumb"></span>
             </div>
             <div class="att__field">
               <input id="attCode" placeholder="Masalan: MG-1001" maxlength="12" aria-label="Shaxsiy kod" />
-              <button class="btn btn--primary" type="submit">Tekshirish <i class="i-arrow"></i></button>
+              <button class="btn btn--primary" type="submit"><span data-t="att.check">Tekshirish</span> <i class="i-arrow"></i></button>
             </div>
             <div class="att__demo">
-              <small>Sinov uchun kodlar:</small>
+              <small data-t="att.demo">Sinov uchun kodlar:</small>
               <button type="button" class="chip" data-code="MG-1001">MG-1001</button>
               <button type="button" class="chip" data-code="MG-1004">MG-1004</button>
               <button type="button" class="chip" data-code="UST-101">UST-101</button>
@@ -145,7 +145,7 @@
         <div class="att__result" id="attResult">
           <div class="att__empty">
             <div class="att__empty-icon"><i class="i-search"></i></div>
-            <p>Natija shu yerda chiqadi — yuqoridagi sinov kodlaridan birini sinab ko'ring.</p>
+            <p data-t="att.empty">Natija shu yerda chiqadi — yuqoridagi sinov kodlaridan birini sinab ko'ring.</p>
           </div>
         </div>
       </div>
@@ -156,34 +156,34 @@
       <div class="container">
         <div class="section__head">
           <div>
-            <span class="eyebrow">03 — Ustozlar</span>
-            <h2 class="h2">Bilimni <em>bag'ishlaydigan</em> jamoa</h2>
+            <span class="eyebrow" data-t="teachers.eyebrow">03 — Ustozlar</span>
+            <h2 class="h2"><span data-t="teachers.title1">Bilimni</span> <em data-t="teachers.title2">bag'ishlaydigan</em> <span data-t="teachers.title3">jamoa</span></h2>
           </div>
-          <p class="section__note">Har bir ustoz o'z sohasida amaliy tajribaga ega va o'quvchining natijasi uchun shaxsan javob beradi.</p>
+          <p class="section__note" data-t="teachers.note">Har bir ustoz o'z sohasida amaliy tajribaga ega va o'quvchining natijasi uchun shaxsan javob beradi.</p>
         </div>
-        <div class="teachers" id="teachers"></div>
+        <div class="teachers" id="teachers" data-managed="Ustozlar"></div>
 
         <div class="join reveal">
           <div>
-            <h3>Ustozlar jamoasiga qo'shiling</h3>
-            <p>Tajribali mutaxassislar bilan birga ishlang, o'quvchilarga o'z bilimingizni bering.</p>
+            <h3 data-t="join.title">Ustozlar jamoasiga qo'shiling</h3>
+            <p data-t="join.text">Tajribali mutaxassislar bilan birga ishlang, o'quvchilarga o'z bilimingizni bering.</p>
           </div>
-          <button class="btn btn--light btn--lg" id="openJoin">Ariza yuborish <i class="i-arrow"></i></button>
+          <button class="btn btn--light btn--lg" id="openJoin"><span data-t="join.btn">Ariza yuborish</span> <i class="i-arrow"></i></button>
         </div>
       </div>
     </section>
 
-    <!-- WHY / TESTIMONIALS -->
+    <!-- TESTIMONIALS -->
     <section class="section section--tint">
       <div class="container">
         <div class="section__head section__head--center">
-          <span class="eyebrow">Nega aynan biz?</span>
-          <h2 class="h2">O'quvchilar <em>nima deydi</em></h2>
+          <span class="eyebrow" data-t="quotes.eyebrow">Nega aynan biz?</span>
+          <h2 class="h2"><span data-t="quotes.title1">O'quvchilar</span> <em data-t="quotes.title2">nima deydi</em></h2>
         </div>
         <div class="quotes">
-          <figure class="quote reveal"><blockquote>"3 oyda Python asoslarini o'rgandim va birinchi frilans buyurtmamni oldim. Ustozlar har bir savolga sabr bilan javob berishadi."</blockquote><figcaption><span class="av" style="--c:#10b981">DX</span><div><b>Diyora X.</b><small>IT & Dasturlash</small></div></figcaption></figure>
-          <figure class="quote reveal"><blockquote>"IELTS'dan 7.0 oldim. Har oylik mock testlar real imtihonga juda o'xshash edi — hayajon umuman bo'lmadi."</blockquote><figcaption><span class="av" style="--c:#3b82f6">BE</span><div><b>Bekzod E.</b><small>Ingliz tili</small></div></figcaption></figure>
-          <figure class="quote reveal"><blockquote>"Farzandimning davomatini telefondan kuzatib boraman. Juda qulay, ota-onalar uchun katta yordam."</blockquote><figcaption><span class="av" style="--c:#f59e0b">GN</span><div><b>Gulnora N.</b><small>Ota-ona</small></div></figcaption></figure>
+          <figure class="quote reveal"><blockquote data-t="quote1.text">"3 oyda Python asoslarini o'rgandim va birinchi frilans buyurtmamni oldim. Ustozlar har bir savolga sabr bilan javob berishadi."</blockquote><figcaption><span class="av" style="--c:#10b981" data-t="quote1.av">DX</span><div><b data-t="quote1.name">Diyora X.</b><small data-t="quote1.course">IT & Dasturlash</small></div></figcaption></figure>
+          <figure class="quote reveal"><blockquote data-t="quote2.text">"IELTS'dan 7.0 oldim. Har oylik mock testlar real imtihonga juda o'xshash edi — hayajon umuman bo'lmadi."</blockquote><figcaption><span class="av" style="--c:#3b82f6" data-t="quote2.av">BE</span><div><b data-t="quote2.name">Bekzod E.</b><small data-t="quote2.course">Ingliz tili</small></div></figcaption></figure>
+          <figure class="quote reveal"><blockquote data-t="quote3.text">"Farzandimning davomatini telefondan kuzatib boraman. Juda qulay, ota-onalar uchun katta yordam."</blockquote><figcaption><span class="av" style="--c:#f59e0b" data-t="quote3.av">GN</span><div><b data-t="quote3.name">Gulnora N.</b><small data-t="quote3.course">Ota-ona</small></div></figcaption></figure>
         </div>
       </div>
     </section>
@@ -192,16 +192,16 @@
     <section class="section" id="faq">
       <div class="container faq">
         <div>
-          <span class="eyebrow">Ko'p beriladigan savollar</span>
-          <h2 class="h2">Savollaringiz <em>bormi?</em></h2>
-          <p class="muted">Javob topilmasa, bizga qo'ng'iroq qiling yoki xabar qoldiring — 15 daqiqa ichida javob beramiz.</p>
+          <span class="eyebrow" data-t="faq.eyebrow">Ko'p beriladigan savollar</span>
+          <h2 class="h2"><span data-t="faq.title1">Savollaringiz</span> <em data-t="faq.title2">bormi?</em></h2>
+          <p class="muted" data-t="faq.lead">Javob topilmasa, bizga qo'ng'iroq qiling yoki xabar qoldiring — 15 daqiqa ichida javob beramiz.</p>
         </div>
         <div class="acc" id="faqList">
-          <details class="acc__item" open><summary>Sinov darsi haqiqatan bepulmi?</summary><p>Ha. Istalgan yo'nalish bo'yicha birinchi dars bepul. Darsdan so'ng ustoz darajangizni aniqlab, mos guruhni tavsiya qiladi.</p></details>
-          <details class="acc__item"><summary>Guruhlarda nechta o'quvchi bo'ladi?</summary><p>Har bir guruhda 8–12 nafar o'quvchi. Bu ustozga har bir o'quvchiga yetarli e'tibor berish imkonini beradi.</p></details>
-          <details class="acc__item"><summary>Davomat kodimni qayerdan olaman?</summary><p>Ro'yxatdan o'tganingizdan so'ng administrator sizga shaxsiy kod beradi (masalan, MG-1001). Shu kod orqali saytda davomatni ko'rasiz.</p></details>
-          <details class="acc__item"><summary>To'lovni bo'lib to'lash mumkinmi?</summary><p>Ha, to'lov oyma-oy amalga oshiriladi. Bir nechta yo'nalishga yozilganlar uchun chegirmalar mavjud.</p></details>
-          <details class="acc__item"><summary>Kurs oxirida sertifikat beriladimi?</summary><p>Ha, kursni muvaffaqiyatli tamomlaganlarga markaz sertifikati beriladi. Til kurslarida xalqaro imtihonlarga ham tayyorlaymiz.</p></details>
+          <details class="acc__item" open><summary><span data-t="faq.q1">Sinov darsi haqiqatan bepulmi?</span></summary><p data-t="faq.a1">Ha. Istalgan yo'nalish bo'yicha birinchi dars bepul. Darsdan so'ng ustoz darajangizni aniqlab, mos guruhni tavsiya qiladi.</p></details>
+          <details class="acc__item"><summary><span data-t="faq.q2">Guruhlarda nechta o'quvchi bo'ladi?</span></summary><p data-t="faq.a2">Har bir guruhda 8–12 nafar o'quvchi. Bu ustozga har bir o'quvchiga yetarli e'tibor berish imkonini beradi.</p></details>
+          <details class="acc__item"><summary><span data-t="faq.q3">Davomat kodimni qayerdan olaman?</span></summary><p data-t="faq.a3">Ro'yxatdan o'tganingizdan so'ng administrator sizga shaxsiy kod beradi (masalan, MG-1001). Shu kod orqali saytda davomatni ko'rasiz.</p></details>
+          <details class="acc__item"><summary><span data-t="faq.q4">To'lovni bo'lib to'lash mumkinmi?</span></summary><p data-t="faq.a4">Ha, to'lov oyma-oy amalga oshiriladi. Bir nechta yo'nalishga yozilganlar uchun chegirmalar mavjud.</p></details>
+          <details class="acc__item"><summary><span data-t="faq.q5">Kurs oxirida sertifikat beriladimi?</span></summary><p data-t="faq.a5">Ha, kursni muvaffaqiyatli tamomlaganlarga markaz sertifikati beriladi. Til kurslarida xalqaro imtihonlarga ham tayyorlaymiz.</p></details>
         </div>
       </div>
     </section>
@@ -210,28 +210,28 @@
     <section class="section section--tint" id="boglanish">
       <div class="container contact">
         <div class="contact__info">
-          <span class="eyebrow">04 — Bog'lanish</span>
-          <h2 class="h2">Kelib, sinov darsiga <em>qatnashib ko'ring</em></h2>
-          <ul class="info">
-            <li><span class="info__icon"><i class="i-pin"></i></span><div><small>Manzil</small><b data-site="address"></b></div></li>
-            <li><span class="info__icon"><i class="i-phone"></i></span><div><small>Telefon</small><a data-site="phone" data-tel></a></div></li>
-            <li><span class="info__icon"><i class="i-clock"></i></span><div><small>Ish vaqti</small><b data-site="hours"></b></div></li>
+          <span class="eyebrow" data-t="contact.eyebrow">04 — Bog'lanish</span>
+          <h2 class="h2"><span data-t="contact.title1">Kelib, sinov darsiga</span> <em data-t="contact.title2">qatnashib ko'ring</em></h2>
+          <ul class="info" data-managed="Sozlamalar">
+            <li><span class="info__icon"><i class="i-pin"></i></span><div><small data-t="contact.addressLabel">Manzil</small><b data-site="address"></b></div></li>
+            <li><span class="info__icon"><i class="i-phone"></i></span><div><small data-t="contact.phoneLabel">Telefon</small><a data-site="phone" data-tel></a></div></li>
+            <li><span class="info__icon"><i class="i-clock"></i></span><div><small data-t="contact.hoursLabel">Ish vaqti</small><b data-site="hours"></b></div></li>
           </ul>
           <div class="contact__links">
-            <a class="btn btn--dark" data-site-href="googleForm" target="_blank" rel="noopener">Google Form orqali yozilish <i class="i-arrow"></i></a>
+            <a class="btn btn--dark" data-site-href="googleForm" target="_blank" rel="noopener"><span data-t="contact.gform">Google Form orqali yozilish</span> <i class="i-arrow"></i></a>
             <a class="icon-btn" data-site-href="telegram" target="_blank" rel="noopener" aria-label="Telegram"><svg viewBox="0 0 24 24"><path d="M21.5 4.5 2.8 11.7c-1 .4-1 1.6.1 1.9l4.7 1.5 1.8 5.6c.2.7 1.1.9 1.6.4l2.6-2.4 4.9 3.6c.6.4 1.4.1 1.6-.6l3.3-15.6c.2-1-.8-1.9-1.9-1.6ZM9.6 14.6l-.4 4 .1-.1L18 7.6Z"/></svg></a>
             <a class="icon-btn" data-site-href="instagram" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.3"/></svg></a>
           </div>
         </div>
 
         <form class="card form" id="msgForm" novalidate>
-          <h3>Xabar qoldirish</h3>
-          <p class="muted">Ma'lumotlaringizni qoldiring — administrator siz bilan bog'lanadi.</p>
-          <label class="field"><span>Ismingiz</span><input name="name" required placeholder="Ism Familiya" /></label>
-          <label class="field"><span>Telefon raqam</span><input name="phone" required placeholder="+998 __ ___ __ __" inputmode="tel" /></label>
-          <label class="field"><span>Qiziqqan kurs</span><select name="course" id="msgCourse"></select></label>
-          <label class="field"><span>Xabar</span><textarea name="message" rows="3" placeholder="Savolingiz yoki qulay vaqt..."></textarea></label>
-          <button class="btn btn--primary btn--block" type="submit">Yuborish <i class="i-arrow"></i></button>
+          <h3 data-t="msg.title">Xabar qoldirish</h3>
+          <p class="muted" data-t="msg.lead">Ma'lumotlaringizni qoldiring — administrator siz bilan bog'lanadi.</p>
+          <label class="field"><span data-t="form.name">Ismingiz</span><input name="name" required placeholder="Ism Familiya" /></label>
+          <label class="field"><span data-t="form.phone">Telefon raqam</span><input name="phone" required placeholder="+998 __ ___ __ __" inputmode="tel" /></label>
+          <label class="field"><span data-t="form.course">Qiziqqan kurs</span><select name="course" id="msgCourse"></select></label>
+          <label class="field"><span data-t="form.message">Xabar</span><textarea name="message" rows="3" placeholder="Savolingiz yoki qulay vaqt..."></textarea></label>
+          <button class="btn btn--primary btn--block" type="submit"><span data-t="msg.btn">Yuborish</span> <i class="i-arrow"></i></button>
         </form>
       </div>
     </section>
@@ -241,10 +241,10 @@
     <div class="container footer__inner">
       <a href="#top" class="brand brand--light">
         <span class="brand__mark"><svg viewBox="0 0 32 32"><path d="M9 22V15M16 22V10M23 22v-5"/></svg></span>
-        <span class="brand__text"><b>IT Park</b><small>Marg'ilon</small></span>
+        <span class="brand__text"><b data-t="brand.name">IT Park</b><small data-t="brand.city">Marg'ilon</small></span>
       </a>
-      <nav><a href="#kurslar">Kurslar</a><a href="#davomat">Davomat</a><a href="#ustozlar">Ustozlar</a><a href="#boglanish">Bog'lanish</a></nav>
-      <small>© <span id="year"></span> IT Park Marg'ilon. Barcha huquqlar himoyalangan.</small>
+      <nav><a href="#kurslar" data-t="nav.courses">Kurslar</a><a href="#davomat" data-t="nav.attendance">Davomat</a><a href="#ustozlar" data-t="nav.teachers">Ustozlar</a><a href="#boglanish" data-t="nav.contact">Bog'lanish</a></nav>
+      <small>© <span id="year"></span> <span data-t="footer.copy">IT Park Marg'ilon. Barcha huquqlar himoyalangan.</span></small>
     </div>
   </footer>
 
@@ -260,8 +260,8 @@
   <div class="toast" id="toast" role="status"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script src="config.js?v=3"></script>
-  <script src="data.js?v=3"></script>
-  <script src="loader.js?v=3"></script>
+  <script src="config.js?v=4"></script>
+  <script src="data.js?v=4"></script>
+  <script src="loader.js?v=4"></script>
 </body>
 </html>

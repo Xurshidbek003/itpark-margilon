@@ -17,6 +17,7 @@
       const settings = Object.fromEntries((s.data || []).map((r) => [r.key, r.value]));
       if (settings.site) window.SITE = { ...window.SITE, ...settings.site };
       if (Array.isArray(settings.stats)) window.STATS = settings.stats;
+      if (settings.texts && typeof settings.texts === "object") window.TEXTS = settings.texts;
       if (c.data && c.data.length) window.COURSES = c.data.map((x) => ({ ...x, desc: x.description, tags: x.tags || [] }));
       if (t.data) window.TEACHERS = t.data.map((x) => ({ ...x, course: x.course_id }));
       window.ATTENDANCE = {}; // davomat endi faqat server orqali tekshiriladi
@@ -43,7 +44,9 @@
     } catch (_) { /* statistika ixtiyoriy */ }
   }
 
+  const editMode = new URLSearchParams(location.search).has("edit");
   const s = document.createElement("script");
-  s.src = "app.js?v=3";
+  s.src = "app.js?v=4";
+  if (editMode) s.onload = () => { const e = document.createElement("script"); e.src = "editor.js?v=4"; document.body.appendChild(e); };
   document.body.appendChild(s);
 })();
