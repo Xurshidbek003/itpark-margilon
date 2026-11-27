@@ -39,7 +39,14 @@
   const initials = (n) => String(n || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const fmtDate = (d) => new Date(d).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const fmtDay = (d) => new Date(d + "T00:00:00").toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
-  const longDay = (d, opts) => new Date(d + "T00:00:00").toLocaleDateString("uz-UZ", opts);
+  const UZ_M = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentabr", "oktabr", "noyabr", "dekabr"];
+  const UZ_W = ["Yak", "Dush", "Sesh", "Chor", "Pay", "Jum", "Shan"];
+  const longDay = (d, opts = {}) => {
+    const x = new Date(String(d).slice(0, 10) + "T00:00:00");
+    const day = opts.day === "2-digit" ? String(x.getDate()).padStart(2, "0") : x.getDate();
+    const mon = opts.month === "short" ? UZ_M[x.getMonth()].slice(0, 3) : UZ_M[x.getMonth()];
+    return `${opts.weekday ? UZ_W[x.getDay()] + ", " : ""}${day}-${mon}${opts.year ? " " + x.getFullYear() : ""}`;
+  };
   const num = (n) => String(n ?? 0).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   const pctOf = (log) => (!log || !log.length) ? 0 : Math.round(log.filter((s) => s !== 0).length / log.length * 100);
   const downloadCSV = (name, rows) => {

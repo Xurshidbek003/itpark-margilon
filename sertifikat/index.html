@@ -79,7 +79,9 @@
     const cert = c.data && c.data[0];
     if (!cert) return showEmpty("❌", "Sertifikat topilmadi", `«${esc(n)}» raqamli sertifikat ro'yxatda yo'q. Raqamni tekshirib, qayta urinib ko'ring.`);
     const tpl = (t.data && t.data.value) || {};
-    const date = new Date(cert.issued_at + "T00:00:00").toLocaleDateString("uz-UZ", { day: "numeric", month: "long", year: "numeric" });
+    const UZ_M = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentabr", "oktabr", "noyabr", "dekabr"];
+    const dt = new Date(cert.issued_at + "T00:00:00");
+    const date = `${dt.getFullYear()}-yil ${dt.getDate()}-${UZ_M[dt.getMonth()]}`;
     document.title = `${cert.full_name} — sertifikat №${cert.number}`;
     main.innerHTML = `
       <div class="status ${cert.revoked ? "is-bad" : ""}">
