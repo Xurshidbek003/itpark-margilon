@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=6" />
+  <link rel="stylesheet" href="admin.css?v=7" />
 </head>
 <body>
   <!-- LOGIN -->
@@ -42,10 +42,14 @@
       <nav class="side__nav" id="sideNav">
         <a href="#stat" data-view="stat"><i>📊</i>Statistika</a>
         <a href="#leads" data-view="leads"><i>📥</i>Arizalar <em class="count" id="leadsCount"></em></a>
+        <div class="side__label">O'quv jarayoni</div>
         <a href="#courses" data-view="courses"><i>📚</i>Kurslar</a>
         <a href="#teachers" data-view="teachers"><i>👩‍🏫</i>Ustozlar</a>
-        <a href="#attendance" data-view="attendance"><i>✅</i>Davomat</a>
-        <a href="#certs" data-view="certs"><i>🎓</i>Sertifikatlar</a>
+        <a href="#groups" data-view="groups"><i>👥</i>Guruhlar</a>
+        <a href="#students" data-view="students"><i>🧑‍🎓</i>O'quvchilar</a>
+        <a href="#certs" data-view="certs"><i>🎓</i>Sertifikatlar <em class="count count--warn" id="certsCount"></em></a>
+        <div class="side__label">Boshqa</div>
+        <a href="#attendance" data-view="attendance"><i>🗂</i>Ustozlar davomati</a>
         <a href="#settings" data-view="settings"><i>⚙️</i>Sozlamalar</a>
       </nav>
       <div class="side__foot">
@@ -79,6 +83,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="../config.js?v=5"></script>
   <script src="../cert.js?v=5"></script>
-  <script src="admin.js?v=6"></script>
+  <script src="admin.js?v=7"></script>
 </body>
 </html>

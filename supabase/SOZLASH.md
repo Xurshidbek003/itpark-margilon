@@ -16,3 +16,17 @@
    ⚠️ `service_role` / `secret` kalitni hech qachon saytga qo'ymang.
 
 Admin panel manzili: `https://xurshidbek003.github.io/itpark-margilon/admin/`
+
+## CRM (guruhlar, o'quvchilar, davomat, avtomatik sertifikatlar)
+
+7. *SQL Editor* → *New query* → `supabase/crm.sql` faylining hammasini joylang → **Run**.
+   (`schema.sql` va `sertifikat.sql` dan keyin. Qayta ishga tushirish xavfsiz.)
+8. **(Ixtiyoriy) Har kecha avtomatik tekshirish:** *Database → Extensions* → `pg_cron` ni yoqing,
+   so'ng *SQL Editor*da:
+   `select cron.schedule('itpark-finish-groups', '5 19 * * *', 'select public._finish_due_groups()');`
+   Bu qadamsiz ham ishlaydi: admin panelga har kirilganda muddati tugagan guruhlar tekshiriladi.
+
+**Ish tartibi:** Kurs → Guruh (kurs, ustoz, muddat, dars kunlari) → guruhga o'quvchi qo'shish →
+"Davomat olish" → tugash sanasidan keyingi kuni guruh avtomatik yakunlanadi va har bir o'quvchiga
+sertifikat **"Tasdiqlash kutilmoqda"** holatida yaratiladi → *Sertifikatlar* bo'limida tasdiqlang →
+sertifikat faollashadi (QR orqali tekshiriladi, PDF/PNG yuklab olinadi).
