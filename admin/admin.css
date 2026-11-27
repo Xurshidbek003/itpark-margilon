@@ -314,3 +314,6 @@ a.pill:hover { filter: brightness(.96); }
   .top__actions { margin-left: 0; width: 100%; }
   .top__actions .btn { flex: 1 1 auto; }
 }
+.certpick { background: var(--em-soft); color: var(--em-dark); border-radius: 12px; padding: 10px 14px; font-size: 14px; margin-bottom: 14px; }
+.certpick:empty { display: none; }
+.field select:disabled { opacity: .7; }

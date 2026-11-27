@@ -24,6 +24,7 @@
     const m = (e && (e.message || e.error_description)) || String(e);
     if (/Invalid login/i.test(m)) return "Login yoki parol noto'g'ri";
     if (/Email not confirmed/i.test(m)) return "Email tasdiqlanmagan (Supabase'da foydalanuvchini 'Auto Confirm User' bilan yarating)";
+    if (/certificates_group_student_uq/i.test(m)) return "Bu o'quvchiga shu guruh bo'yicha sertifikat allaqachon yaratilgan";
     if (/duplicate key/i.test(m)) return "Bunday ID/kod allaqachon mavjud";
     if (/row-level security|not allowed|permission/i.test(m)) return "Ruxsat yo'q — hisobingiz admins jadvalida borligini tekshiring";
     if (/Failed to fetch|NetworkError/i.test(m)) return "Internet yoki server bilan aloqa yo'q";
@@ -901,15 +902,18 @@
   }
 
   /* ================= SERTIFIKATLAR ================= */
-  const TPL_DEFAULT = { heading: "CERTIFICATE", done: "kursini muvaffaqiyatli yakunladi", logos: ["", "", ""], signers: [{ name: "", title: "", image: "" }, { name: "", title: "", image: "" }] };
+  const TPL_DEFAULT = { heading: "CERTIFICATE", done: "kursini muvaffaqiyatli yakunladi", logos: ["", "", ""], signer: { name: "", title: "", image: "" } };
   async function loadTpl() {
     const row = await q(sb.from("settings").select("value").eq("key", "certificate").maybeSingle());
     const v = (row && row.value) || {};
-    return {
+    const t = {
       ...TPL_DEFAULT, ...v,
       logos: [0, 1, 2].map((i) => (v.logos || [])[i] || ""),
-      signers: [0, 1].map((i) => ({ ...TPL_DEFAULT.signers[i], ...((v.signers || [])[i] || {}) })),
+      // bitta imzo; eski shablonda (2 ta imzo) — 2-imzo olinadi
+      signer: { ...TPL_DEFAULT.signer, ...(window.Cert.signerOf(v) || {}) },
     };
+    delete t.signers;
+    return t;
   }
 
   async function previewCert(c, tpl, onApprove) {
@@ -938,7 +942,7 @@
   function tplModal(tpl) {
     const values = { heading: tpl.heading, done: tpl.done };
     tpl.logos.forEach((u, i) => (values["logo" + i] = u));
-    tpl.signers.forEach((s, i) => { values[`s${i}name`] = s.name; values[`s${i}title`] = s.title; values[`s${i}image`] = s.image; });
+    Object.assign(values, { sname: tpl.signer.name, stitle: tpl.signer.title, simage: tpl.signer.image });
     formModal({
       title: "Sertifikat shabloni",
       values,
@@ -949,21 +953,75 @@
         { name: "logo0", label: "1-logotip", type: "image", folder: "cert" },
         { name: "logo1", label: "2-logotip", type: "image", folder: "cert" },
         { name: "logo2", label: "3-logotip", type: "image", folder: "cert" },
-        { type: "sub", label: "1-imzo (chap)" },
-        { group: [{ name: "s0name", label: "Ism-familiya" }, { name: "s0title", label: "Lavozimi" }] },
-        { name: "s0image", label: "Imzo va muhr rasmi", type: "image", folder: "cert" },
-        { type: "sub", label: "2-imzo (o'rta)" },
-        { group: [{ name: "s1name", label: "Ism-familiya" }, { name: "s1title", label: "Lavozimi" }] },
-        { name: "s1image", label: "Imzo va muhr rasmi", type: "image", folder: "cert" },
+        { type: "sub", label: "Imzo va muhr" },
+        { group: [{ name: "sname", label: "Ism-familiya", placeholder: "Abduganiev Sherdil" }, { name: "stitle", label: "Lavozimi", placeholder: "Director of \"IT Park Farg'ona\" LLC" }] },
+        { name: "simage", label: "Imzo va muhr rasmi", type: "image", folder: "cert" },
       ],
       onSave: async (v) => {
         const value = {
           heading: v.heading, done: v.done,
           logos: [v.logo0, v.logo1, v.logo2].map((x) => x || ""),
-          signers: [0, 1].map((i) => ({ name: v[`s${i}name`] || "", title: v[`s${i}title`] || "", image: v[`s${i}image`] || "" })),
+          signer: { name: v.sname || "", title: v.stitle || "", image: v.simage || "" },
         };
         await q(sb.from("settings").upsert({ key: "certificate", value, updated_at: new Date().toISOString() }));
         toast("Shablon saqlandi"); viewCerts();
+      },
+    });
+  }
+
+  // Qo'lda sertifikat: ism va kurs tizimdan (o'quvchi + guruh / kurs) olinadi
+  async function newCertModal(tpl) {
+    const [studs, links] = await Promise.all([
+      fetchAll(() => sb.from("students").select("id,code,full_name").order("full_name")),
+      fetchAll(() => sb.from("group_students").select("group_id,student_id,groups(id,name,course_id)")),
+    ]);
+    if (!studs.length) { toast("Avval O'quvchilar bo'limida o'quvchi qo'shing", true); return; }
+    const groupsOf = (sid) => links.filter((l) => l.student_id === sid && l.groups).map((l) => l.groups);
+    formModal({
+      title: "Yangi sertifikat",
+      values: { issued_at: today() },
+      fields: [
+        { type: "hint", label: "Ism-familiya va kurs nomi tizimdagi ma'lumotdan olinadi. Ism xato bo'lsa, avval O'quvchilar bo'limida tuzating." },
+        { name: "student_id", label: "O'quvchi", type: "select", required: true, options: { "": "— o'quvchini tanlang —", ...Object.fromEntries(studs.map((x) => [x.id, `${x.full_name} · ${x.code}`])) } },
+        { group: [{ name: "group_id", label: "Guruh", type: "select", options: { "": "— guruhsiz —" } }, { name: "course_id", label: "Kurs", type: "select", options: courseOpts("— kursni tanlang —") }] },
+        { name: "issued_at", label: "Berilgan sana", type: "date", required: true },
+      ],
+      onOpen: (form) => {
+        const E = form.elements;
+        const prev = document.createElement("div"); prev.className = "certpick"; E.issued_at.closest(".field").before(prev);
+        const show = () => {
+          const st = studs.find((x) => x.id === E.student_id.value);
+          prev.innerHTML = st ? `Sertifikatda: <b>${esc(st.full_name)}</b> — <b>${esc(courseOf(E.course_id.value).title || "kurs tanlanmagan")}</b>` : "";
+        };
+        const syncGroup = () => {
+          const g = groupsOf(E.student_id.value).find((x) => x.id === E.group_id.value);
+          if (g) E.course_id.value = g.course_id || "";
+          E.course_id.disabled = !!g;
+          show();
+        };
+        E.student_id.addEventListener("change", () => {
+          const gs = groupsOf(E.student_id.value);
+          E.group_id.innerHTML = `<option value="">— guruhsiz —</option>` + gs.map((g) => `<option value="${esc(g.id)}">${esc(g.name)}${courseOf(g.course_id).title ? " · " + esc(courseOf(g.course_id).title) : ""}</option>`).join("");
+          if (gs.length) E.group_id.value = gs[0].id;
+          syncGroup();
+        });
+        E.group_id.addEventListener("change", syncGroup);
+        E.course_id.addEventListener("change", show);
+      },
+      onSave: async (v) => {
+        const st = studs.find((x) => x.id === v.student_id);
+        const course = courseOf(v.course_id).title;
+        if (!course) { toast("Kursni tanlang", true); throw new Error("course"); }
+        const row = { full_name: st.full_name, course, issued_at: v.issued_at, student_id: st.id, group_id: v.group_id || null };
+        if (row.group_id) {
+          const m = await fetchAll(() => sb.from("marks").select("status").eq("group_id", row.group_id).eq("student_id", st.id));
+          if (m.length) row.attendance_pct = Math.round(m.filter((x) => x.status !== 0).length / m.length * 100);
+        }
+        const saved = await q(sb.from("certificates").insert(row).select().single());
+        toast("Sertifikat yaratildi");
+        state.cFilter = "";
+        viewCerts();
+        setTimeout(() => previewCert(saved, tpl), 350);
       },
     });
   }
@@ -979,7 +1037,7 @@
     if (state.cFilter == null) state.cFilter = counts.pending ? "pending" : "";
     const f = state.cFilter;
     actions(`<button class="btn btn--ghost" id="tplBtn">🎨 Shablon</button><button class="btn btn--primary" id="addCert">+ Yangi sertifikat</button>`);
-    const missing = !tpl.logos.some(Boolean) || !tpl.signers.every((s) => s.image);
+    const missing = !tpl.logos.some(Boolean) || !tpl.signer.image;
     $("#view").innerHTML = `${missing ? `<div class="tplhint">⚠️ Shablonga logotiplar va imzo/muhr rasmlari hali to'liq yuklanmagan — sertifikatlarda ular bo'sh chiqadi. "🎨 Shablon" tugmasi orqali markazning asl fayllarini yuklang.</div>` : ""}
       ${counts.pending ? `<div class="tplhint">🎓 ${counts.pending} ta sertifikat tasdiqlashni kutmoqda. Ular guruh muddati tugaganda avtomatik yaratildi — tasdiqlanmaguncha QR orqali tekshirib bo'lmaydi va yuklab olinmaydi.</div>` : ""}
       <div class="card">
@@ -1020,9 +1078,8 @@
     $("#cSeg").onclick = (e) => { const b = e.target.closest("[data-f]"); if (b) { state.cFilter = b.dataset.f; viewCerts(); } };
     // tasdiqlash: sertifikat faollashadi, berilgan sana — tasdiqlangan kun
     const approve = async (items) => {
-      const ids = items.map((r) => r.id), now = new Date().toISOString(), day = today();
-      await q(sb.from("certificates").update({ status: "active", approved_at: now, issued_at: day }).in("id", ids));
-      items.forEach((r) => { r.status = "active"; r.approved_at = now; r.issued_at = day; });
+      const ids = items.map((r) => r.id);
+      await q(sb.rpc("approve_certificates", { p_ids: ids }));
       toast(ids.length > 1 ? `${ids.length} ta sertifikat tasdiqlandi va faollashdi` : "Sertifikat tasdiqlandi va faollashdi");
       updateCertCount(); viewCerts();
     };
@@ -1032,22 +1089,7 @@
       approve(pend);
     };
     $("#tplBtn").onclick = () => tplModal(tpl);
-    $("#addCert").onclick = () => formModal({
-      title: "Yangi sertifikat",
-      values: { issued_at: today() },
-      fields: [
-        { name: "full_name", label: "O'quvchining ism-familiyasi", required: true, placeholder: "Masalan: Törayev Raufbek" },
-        { name: "course", label: "Kurs nomi", type: "datalist", required: true, options: state.courses.map((c) => c.title), placeholder: "Masalan: Kompyuter savodxonligi", help: "Ro'yxatdan tanlang yoki o'zingiz yozing" },
-        { name: "issued_at", label: "Berilgan sana", type: "date", required: true },
-      ],
-      onSave: async (v) => {
-        const row = await q(sb.from("certificates").insert(v).select().single());
-        toast("Sertifikat yaratildi");
-        state.cFilter = "";
-        viewCerts();
-        setTimeout(() => previewCert(row, tpl), 350);
-      },
-    });
+    $("#addCert").onclick = () => newCertModal(tpl);
     $("#ctb").onclick = async (e) => {
       const sh = e.target.closest("[data-show]"), rv = e.target.closest("[data-revoke]"), dl = e.target.closest("[data-del]"), ap = e.target.closest("[data-approve]");
       if (ap) approve([rows.find((r) => r.id === ap.dataset.approve)]);

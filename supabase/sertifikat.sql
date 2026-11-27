@@ -33,9 +33,6 @@ insert into public.settings (key, value) values ('certificate', '{
   "heading": "CERTIFICATE",
   "done": "kursini muvaffaqiyatli yakunladi",
   "logos": ["", "", ""],
-  "signers": [
-    {"name": "Makhliyo Muksinova", "title": "Deputy Director of IT Park", "image": ""},
-    {"name": "Abduganiev Sherdil", "title": "Director of \"IT Park Farg''ona\" LLC", "image": ""}
-  ]
+  "signer": {"name": "Abduganiev Sherdil", "title": "Director of \"IT Park Farg''ona\" LLC", "image": ""}
 }')
 on conflict (key) do nothing;

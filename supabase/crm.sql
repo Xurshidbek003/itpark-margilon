@@ -163,6 +163,29 @@ begin
 end $$;
 grant execute on function public.issue_group_certificates(uuid) to authenticated;
 
+-- Tasdiqlash: sertifikat faollashadi, sana — tasdiqlangan kun; ism va kurs nomi
+-- tizimdagi eng so'nggi ma'lumotdan (o'quvchi va guruh kursi) yangilanadi
+create or replace function public.approve_certificates(p_ids uuid[])
+returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if not public.is_admin() then raise exception 'not allowed'; end if;
+  update public.certificates c set
+    status = 'active',
+    approved_at = now(),
+    issued_at = (now() at time zone 'Asia/Tashkent')::date,
+    full_name = coalesce(s.full_name, c.full_name),
+    course = coalesce(co.title, c.course)
+  from public.certificates c2
+  left join public.students s on s.id = c2.student_id
+  left join public.groups g on g.id = c2.group_id
+  left join public.courses co on co.id = g.course_id
+  where c.id = c2.id and c.id = any(p_ids) and c.status = 'pending';
+  get diagnostics n = row_count;
+  return n;
+end $$;
+grant execute on function public.approve_certificates(uuid[]) to authenticated;
+
 -- =====================================================================
 --  SAYTDAGI TEKSHIRUVLAR
 -- =====================================================================

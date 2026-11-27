@@ -41,8 +41,7 @@
     .cert__line { position: absolute; left: 60px; top: 398px; width: 657px; height: 2px; background: #1b1b1b; }
     .cert__course { position: absolute; left: 62px; top: 413px; width: 720px; font: 500 31px/1.25 Roboto, Arial, sans-serif; color: #74d11a; white-space: nowrap; }
     .cert__done { position: absolute; left: 62px; top: 462px; width: 720px; font: 500 31px/1.25 Roboto, Arial, sans-serif; white-space: nowrap; }
-    .cert__signer { position: absolute; top: 548px; width: 320px; text-align: center; }
-    .cert__signer--1 { left: 50px; } .cert__signer--2 { left: 413px; }
+    .cert__signer { position: absolute; top: 548px; left: 250px; width: 320px; text-align: center; }
     .cert__sign { position: relative; z-index: 1; height: 152px; display: flex; align-items: flex-end; justify-content: center; }
     .cert__sign img { max-height: 152px; max-width: 280px; object-fit: contain; display: block; }
     .cert__sline { width: 150px; height: 1.5px; background: #222; margin: -10px auto 0; }
@@ -66,6 +65,8 @@
     return `<svg class="cert__deco" viewBox="0 0 190 ${H}" preserveAspectRatio="none"><polygon points="${P.map((p) => p.join(",")).join(" ")}" fill="#86e01f"/>${tri}</svg>`;
   }
 
+  const signerOf = (tpl) => (tpl && (tpl.signer || (tpl.signers || [])[1] || (tpl.signers || [])[0])) || null;
+
   async function build(cert, tpl) {
     tpl = tpl || {};
     let qrSvg = "";
@@ -75,13 +76,15 @@
       qrSvg = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
     } catch (_) { qrSvg = ""; }
     const logos = (tpl.logos || []).filter(Boolean).map((u) => `<img src="${esc(abs(u))}" crossorigin="anonymous" alt="" />`).join("");
-    const signers = (tpl.signers || []).slice(0, 2).map((s, i) => `
-      <div class="cert__signer cert__signer--${i + 1}">
+    // Bitta imzo. Eski shablonlarda (signers: [1-imzo, 2-imzo]) 2-imzo olinadi.
+    const s = signerOf(tpl);
+    const signers = s && (s.name || s.title || s.image) ? `
+      <div class="cert__signer">
         <div class="cert__sign">${s.image ? `<img src="${esc(abs(s.image))}" crossorigin="anonymous" alt="" />` : ""}</div>
         <div class="cert__sline"></div>
         <div class="cert__sname">${esc(s.name)}</div>
         <div class="cert__stitle">${esc(s.title)}</div>
-      </div>`).join("");
+      </div>` : "";
     const el = document.createElement("div");
     el.className = "cert";
     el.innerHTML = `${deco()}
@@ -140,5 +143,5 @@
     } finally { host.remove(); }
   }
 
-  window.Cert = { mount, download, verifyUrl, abs };
+  window.Cert = { mount, download, verifyUrl, abs, signerOf };
 })();
