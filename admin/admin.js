@@ -52,7 +52,8 @@
   /* ---------------- modal ---------------- */
   const modal = $("#modal"), modalBody = $("#modalBody");
   let onModalClose = null;
-  const openModal = (html) => {
+  const openModal = (html, wide = false) => {
+    $(".modal__box", modal).classList.toggle("is-wide", wide);
     modalBody.innerHTML = html; modal.classList.add("is-open"); modal.setAttribute("aria-hidden", "false");
     setTimeout(() => { const f = $("input:not([type=hidden]):not([type=file]):not([disabled]), select, textarea", modalBody); f && f.focus(); }, 60);
   };
@@ -78,6 +79,9 @@
     switch (f.type) {
       case "textarea": return `<label class="field"><span>${esc(f.label)}</span><textarea name="${f.name}" rows="${f.rows || 3}" ${req}>${esc(val)}</textarea>${help}</label>`;
       case "select": return `<label class="field"><span>${esc(f.label)}</span><select name="${f.name}" ${req} ${dis}>${Object.entries(f.options).map(([k, t]) => `<option value="${esc(k)}" ${String(k) === String(val) ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>${help}</label>`;
+      case "sub": return `<div class="subhead">${esc(f.label)}</div>`;
+      case "hint": return `<div class="tplhint">${esc(f.label)}</div>`;
+      case "datalist": return `<label class="field"><span>${esc(f.label)}</span><input name="${f.name}" list="dl-${f.name}" value="${esc(val)}" placeholder="${esc(f.placeholder || "")}" autocomplete="off" ${req} /><datalist id="dl-${f.name}">${(f.options || []).map((o) => `<option value="${esc(o)}"></option>`).join("")}</datalist>${help}</label>`;
       case "color": return `<label class="field"><span>${esc(f.label)}</span><input type="color" name="${f.name}" value="${esc(val || "#22c58b")}" />${help}</label>`;
       case "check": return `<label class="field field--check"><input type="checkbox" name="${f.name}" ${val !== false ? "checked" : ""} /> ${esc(f.label)}</label>`;
       case "image": return `<div class="field"><span>${esc(f.label)}</span><div class="imgpick" data-folder="${f.folder}">
@@ -177,7 +181,7 @@
   /* ---------------- router ---------------- */
   const VIEWS = {
     stat: ["Statistika", viewStat], leads: ["Arizalar", viewLeads], courses: ["Kurslar", viewCourses],
-    teachers: ["Ustozlar", viewTeachers], attendance: ["Davomat", viewAttendance], settings: ["Sozlamalar", viewSettings],
+    teachers: ["Ustozlar", viewTeachers], attendance: ["Davomat", viewAttendance], certs: ["Sertifikatlar", viewCerts], settings: ["Sozlamalar", viewSettings],
   };
   function route() {
     if ($("#app").hidden) return;
@@ -458,6 +462,133 @@
       if (dl) {
         if (!(await confirmDlg(`${dl.dataset.del} kodi va uning barcha davomati o'chiriladi.`))) return;
         await q(sb.from("attendance").delete().eq("code", dl.dataset.del)); toast("O'chirildi"); viewAttendance();
+      }
+    };
+  }
+
+  /* ================= SERTIFIKATLAR ================= */
+  const TPL_DEFAULT = { heading: "CERTIFICATE", done: "kursini muvaffaqiyatli yakunladi", logos: ["", "", ""], signers: [{ name: "", title: "", image: "" }, { name: "", title: "", image: "" }] };
+  async function loadTpl() {
+    const row = await q(sb.from("settings").select("value").eq("key", "certificate").maybeSingle());
+    const v = (row && row.value) || {};
+    return {
+      ...TPL_DEFAULT, ...v,
+      logos: [0, 1, 2].map((i) => (v.logos || [])[i] || ""),
+      signers: [0, 1].map((i) => ({ ...TPL_DEFAULT.signers[i], ...((v.signers || [])[i] || {}) })),
+    };
+  }
+  const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+
+  async function previewCert(c, tpl) {
+    const url = window.Cert.verifyUrl(c.number);
+    openModal(`<h3>Sertifikat №${esc(c.number)}</h3>
+      <div class="certmeta"><b>${esc(c.full_name)}</b><span>${esc(c.course)}</span><span>${longDay(c.issued_at, { day: "numeric", month: "long", year: "numeric" })}</span>${c.revoked ? '<span class="pill pill--rejected">Bekor qilingan</span>' : ""}</div>
+      <div id="certPrev"></div>
+      <div class="certlink"><input class="input" readonly value="${esc(url)}" /><button class="btn btn--ghost btn--sm" id="cpy">Nusxalash</button><a class="btn btn--ghost btn--sm" href="${esc(url)}" target="_blank" rel="noopener">Ochish ↗</a></div>
+      <div class="modal__foot"><button class="btn btn--ghost" id="dlPng">🖼 PNG</button><button class="btn btn--primary" id="dlPdf">⬇ PDF yuklab olish</button></div>`, true);
+    await window.Cert.mount($("#certPrev"), c, tpl);
+    $("#cpy").onclick = () => navigator.clipboard.writeText(url).then(() => toast("Havola nusxalandi"), () => toast("Nusxalab bo'lmadi", true));
+    const dl = async (btn, type) => {
+      const label = btn.textContent; btn.disabled = true; btn.textContent = "Tayyorlanmoqda..."; busy(true);
+      try { await window.Cert.download(c, tpl, type); } catch (e) { toast("Yuklab bo'lmadi: " + e.message, true); }
+      busy(false); btn.disabled = false; btn.textContent = label;
+    };
+    $("#dlPdf").onclick = () => dl($("#dlPdf"), "pdf");
+    $("#dlPng").onclick = () => dl($("#dlPng"), "png");
+  }
+
+  function tplModal(tpl) {
+    const values = { heading: tpl.heading, done: tpl.done };
+    tpl.logos.forEach((u, i) => (values["logo" + i] = u));
+    tpl.signers.forEach((s, i) => { values[`s${i}name`] = s.name; values[`s${i}title`] = s.title; values[`s${i}image`] = s.image; });
+    formModal({
+      title: "Sertifikat shabloni",
+      values,
+      fields: [
+        { type: "hint", label: "Logotiplar, imzo va muhr rasmlarini markazning asl fayllaridan yuklang. Imzo bilan muhrni bitta shaffof fonli PNG rasm qilib yuklash eng yaxshi natija beradi." },
+        { group: [{ name: "heading", label: "Sarlavha", required: true }, { name: "done", label: "Kurs nomidan keyingi matn", required: true }] },
+        { type: "sub", label: "Logotiplar (chapdan o'ngga)" },
+        { name: "logo0", label: "1-logotip", type: "image", folder: "cert" },
+        { name: "logo1", label: "2-logotip", type: "image", folder: "cert" },
+        { name: "logo2", label: "3-logotip", type: "image", folder: "cert" },
+        { type: "sub", label: "1-imzo (chap)" },
+        { group: [{ name: "s0name", label: "Ism-familiya" }, { name: "s0title", label: "Lavozimi" }] },
+        { name: "s0image", label: "Imzo va muhr rasmi", type: "image", folder: "cert" },
+        { type: "sub", label: "2-imzo (o'rta)" },
+        { group: [{ name: "s1name", label: "Ism-familiya" }, { name: "s1title", label: "Lavozimi" }] },
+        { name: "s1image", label: "Imzo va muhr rasmi", type: "image", folder: "cert" },
+      ],
+      onSave: async (v) => {
+        const value = {
+          heading: v.heading, done: v.done,
+          logos: [v.logo0, v.logo1, v.logo2].map((x) => x || ""),
+          signers: [0, 1].map((i) => ({ name: v[`s${i}name`] || "", title: v[`s${i}title`] || "", image: v[`s${i}image`] || "" })),
+        };
+        await q(sb.from("settings").upsert({ key: "certificate", value, updated_at: new Date().toISOString() }));
+        toast("Shablon saqlandi"); viewCerts();
+      },
+    });
+  }
+
+  async function viewCerts() {
+    if (!state.courses.length) await loadCourses();
+    const [rows, tpl] = await Promise.all([q(sb.from("certificates").select("*").order("created_at", { ascending: false }).limit(2000)), loadTpl()]);
+    actions(`<button class="btn btn--ghost" id="tplBtn">🎨 Shablon</button><button class="btn btn--primary" id="addCert">+ Yangi sertifikat</button>`);
+    const missing = !tpl.logos.some(Boolean) || !tpl.signers.every((s) => s.image);
+    $("#view").innerHTML = `${missing ? `<div class="tplhint">⚠️ Shablonga logotiplar va imzo/muhr rasmlari hali to'liq yuklanmagan — sertifikatlarda ular bo'sh chiqadi. "🎨 Shablon" tugmasi orqali markazning asl fayllarini yuklang.</div>` : ""}
+      <div class="card">
+        <div class="toolbar"><input class="input" id="cq" placeholder="🔍 Ism, kurs yoki raqam" /><span class="muted" id="ccount" style="margin-left:auto;font-size:13px;font-weight:700"></span></div>
+        <div class="table-wrap"><table><thead><tr><th>Raqam</th><th>F.I.Sh.</th><th>Kurs</th><th>Sana</th><th>Holat</th><th></th></tr></thead><tbody id="ctb"></tbody></table></div>
+      </div>`;
+    const draw = () => {
+      const qv = $("#cq").value.trim().toLowerCase();
+      const list = rows.filter((r) => !qv || `${r.number} ${r.full_name} ${r.course}`.toLowerCase().includes(qv));
+      $("#ccount").textContent = `${list.length} ta`;
+      $("#ctb").innerHTML = list.length ? list.map((r) => `<tr>
+        <td><b style="font-family:ui-monospace,monospace">${esc(r.number)}</b></td>
+        <td><b>${esc(r.full_name)}</b></td>
+        <td>${esc(r.course)}</td>
+        <td style="white-space:nowrap">${longDay(r.issued_at, { day: "2-digit", month: "short", year: "numeric" })}</td>
+        <td>${r.revoked ? '<span class="pill pill--rejected">Bekor qilingan</span>' : '<span class="pill pill--done">Amalda</span>'}</td>
+        <td><div class="actions">
+          <button class="icon-btn" data-show="${r.id}" title="Ko'rish va yuklab olish">👁</button>
+          <a class="icon-btn" href="${esc(window.Cert.verifyUrl(r.number))}" target="_blank" rel="noopener" title="Tekshirish sahifasini ochish">🔗</a>
+          <button class="icon-btn" data-revoke="${r.id}" title="${r.revoked ? "Qayta tiklash" : "Bekor qilish"}">${r.revoked ? "↩" : "⛔"}</button>
+          <button class="icon-btn del" data-del="${r.id}" title="O'chirish">🗑</button>
+        </div></td></tr>`).join("")
+        : `<tr><td colspan="6"><div class="empty"><b>Sertifikatlar yo'q</b>"+ Yangi sertifikat" tugmasi orqali yarating.</div></td></tr>`;
+    };
+    draw();
+    $("#cq").addEventListener("input", draw);
+    $("#tplBtn").onclick = () => tplModal(tpl);
+    $("#addCert").onclick = () => formModal({
+      title: "Yangi sertifikat",
+      values: { issued_at: today() },
+      fields: [
+        { name: "full_name", label: "O'quvchining ism-familiyasi", required: true, placeholder: "Masalan: Törayev Raufbek" },
+        { name: "course", label: "Kurs nomi", type: "datalist", required: true, options: state.courses.map((c) => c.title), placeholder: "Masalan: Kompyuter savodxonligi", help: "Ro'yxatdan tanlang yoki o'zingiz yozing" },
+        { name: "issued_at", label: "Berilgan sana", type: "date", required: true },
+      ],
+      onSave: async (v) => {
+        const row = await q(sb.from("certificates").insert(v).select().single());
+        toast("Sertifikat yaratildi");
+        viewCerts();
+        setTimeout(() => previewCert(row, tpl), 350);
+      },
+    });
+    $("#ctb").onclick = async (e) => {
+      const sh = e.target.closest("[data-show]"), rv = e.target.closest("[data-revoke]"), dl = e.target.closest("[data-del]");
+      if (sh) previewCert(rows.find((r) => r.id === sh.dataset.show), tpl);
+      if (rv) {
+        const r = rows.find((x) => x.id === rv.dataset.revoke);
+        await q(sb.from("certificates").update({ revoked: !r.revoked }).eq("id", r.id));
+        r.revoked = !r.revoked; draw(); toast(r.revoked ? "Sertifikat bekor qilindi — tekshirish sahifasida shunday ko'rinadi" : "Sertifikat qayta tiklandi");
+      }
+      if (dl) {
+        const r = rows.find((x) => x.id === dl.dataset.del);
+        if (!(await confirmDlg(`№${r.number} (${r.full_name}) sertifikati butunlay o'chiriladi va QR havolasi ishlamay qoladi. Faqat xato yaratilgan bo'lsa o'chiring, aks holda "Bekor qilish"dan foydalaning.`))) return;
+        await q(sb.from("certificates").delete().eq("id", r.id));
+        rows.splice(rows.indexOf(r), 1); draw(); toast("O'chirildi");
       }
     };
   }
