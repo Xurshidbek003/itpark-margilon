@@ -24,9 +24,11 @@
     const m = (e && (e.message || e.error_description)) || String(e);
     if (/Invalid login/i.test(m)) return "Login yoki parol noto'g'ri";
     if (/Email not confirmed/i.test(m)) return "Email tasdiqlanmagan (Supabase'da foydalanuvchini 'Auto Confirm User' bilan yarating)";
+    if (/certificates_group_student_uq/i.test(m)) return "Bu o'quvchiga shu guruh bo'yicha sertifikat allaqachon yaratilgan";
     if (/duplicate key/i.test(m)) return "Bunday ID/kod allaqachon mavjud";
     if (/row-level security|not allowed|permission/i.test(m)) return "Ruxsat yo'q — hisobingiz admins jadvalida borligini tekshiring";
     if (/Failed to fetch|NetworkError/i.test(m)) return "Internet yoki server bilan aloqa yo'q";
+    if (/Could not find the (table|function)|does not exist|schema cache/i.test(m)) return "Bazada CRM jadvallari yo'q — Supabase SQL Editor'da supabase/crm.sql faylini ishga tushiring";
     return m;
   };
   async function q(builder) {
@@ -55,6 +57,27 @@
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
+  // sanalar (mahalliy vaqt bo'yicha YYYY-MM-DD)
+  const iso = (d) => { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 10); };
+  const today = () => iso(new Date());
+  const parseDay = (s) => new Date(String(s).slice(0, 10) + "T00:00:00");
+  const addDays = (s, n) => { const d = parseDay(s); d.setDate(d.getDate() + n); return iso(d); };
+  const addMonths = (s, m) => { const d = parseDay(s), day = d.getDate(); d.setMonth(d.getMonth() + m); if (d.getDate() < day) d.setDate(0); return iso(d); };
+  const daysBetween = (a, b) => Math.round((parseDay(b) - parseDay(a)) / 864e5);
+  const WD = { 1: "Du", 2: "Se", 3: "Ch", 4: "Pa", 5: "Ju", 6: "Sh", 7: "Ya" };
+  const dow = (s) => parseDay(s).getDay() || 7;
+  // guruh jadvali bo'yicha dars kunlari
+  const lessonDays = (g, until = g.end_date) => {
+    const out = [], last = until < g.end_date ? until : g.end_date, set = new Set((g.days || []).map(Number));
+    for (let d = g.start_date; d <= last; d = addDays(d, 1)) if (set.has(dow(d))) out.push(d);
+    return out;
+  };
+  // Supabase bir so'rovda 1000 qatordan ko'p bermaydi — bo'lib olamiz
+  async function fetchAll(make) {
+    const out = [];
+    for (let from = 0; ; from += 1000) { const d = await q(make().range(from, from + 999)); out.push(...d); if (d.length < 1000) break; }
+    return out;
+  }
 
   /* ---------------- modal ---------------- */
   const modal = $("#modal"), modalBody = $("#modalBody");
@@ -70,8 +93,8 @@
   };
   modal.addEventListener("click", (e) => { if (e.target.closest("[data-close]")) closeModal(); });
   addEventListener("keydown", (e) => { if (e.key === "Escape" && modal.classList.contains("is-open")) closeModal(); });
-  const confirmDlg = (text) => new Promise((res) => {
-    openModal(`<h3>Tasdiqlang</h3><p>${esc(text)}</p><div class="modal__foot"><button class="btn btn--ghost" data-close>Bekor qilish</button><button class="btn btn--danger" id="cfYes">Ha, o'chirish</button></div>`);
+  const confirmDlg = (text, yes) => new Promise((res) => {
+    openModal(`<h3>Tasdiqlang</h3><p>${esc(text)}</p><div class="modal__foot"><button class="btn btn--ghost" data-close>Bekor qilish</button><button class="btn ${yes ? "btn--primary" : "btn--danger"}" id="cfYes">${esc(yes || "Ha, o'chirish")}</button></div>`);
     let result = false;
     onModalClose = () => res(result);
     $("#cfYes").onclick = () => { result = true; closeModal(); };
@@ -90,6 +113,7 @@
       case "hint": return `<div class="tplhint">${esc(f.label)}</div>`;
       case "datalist": return `<label class="field"><span>${esc(f.label)}</span><input name="${f.name}" list="dl-${f.name}" value="${esc(val)}" placeholder="${esc(f.placeholder || "")}" autocomplete="off" ${req} /><datalist id="dl-${f.name}">${(f.options || []).map((o) => `<option value="${esc(o)}"></option>`).join("")}</datalist>${help}</label>`;
       case "color": return `<label class="field"><span>${esc(f.label)}</span><input type="color" name="${f.name}" value="${esc(val || "#22c58b")}" />${help}</label>`;
+      case "days": { const set = new Set((val || []).map(Number)); return `<div class="field"><span>${esc(f.label)}</span><div class="days">${Object.entries(WD).map(([k, t]) => `<label><input type="checkbox" name="${f.name}" value="${k}" ${set.has(+k) ? "checked" : ""} /><span>${t}</span></label>`).join("")}</div>${help}</div>`; }
       case "check": return `<label class="field field--check"><input type="checkbox" name="${f.name}" ${val !== false ? "checked" : ""} /> ${esc(f.label)}</label>`;
       case "image": return `<div class="field"><span>${esc(f.label)}</span><div class="imgpick" data-folder="${f.folder}">
           <div class="imgpick__prev">${val ? `<img src="${esc(imgUrl(val))}" alt="" />` : "Rasm yo'q"}</div>
@@ -101,7 +125,7 @@
       default: return `<label class="field"><span>${esc(f.label)}</span><input type="${f.type === "tags" ? "text" : (f.type || "text")}" name="${f.name}" value="${esc(Array.isArray(val) ? val.join(", ") : val)}" placeholder="${esc(f.placeholder || "")}" ${req} ${dis} />${help}</label>`;
     }
   }
-  function formModal({ title, fields, values = {}, onSave }) {
+  function formModal({ title, fields, values = {}, onSave, onOpen }) {
     const body = fields.map((f) => f.group ? `<div class="grid${f.group.length}">${f.group.map((g) => fieldHtml(g, values[g.name])).join("")}</div>` : fieldHtml(f, values[f.name])).join("");
     openModal(`<h3>${esc(title)}</h3><form id="mForm" novalidate>${body}<div class="modal__foot"><button type="button" class="btn btn--ghost" data-close>Bekor qilish</button><button class="btn btn--primary" type="submit">Saqlash</button></div></form>`);
     const form = $("#mForm");
@@ -143,6 +167,7 @@
       const out = {}; let bad = null;
       for (const f of flat) {
         if (f.type === "log") { out[f.name] = JSON.parse($(".logbox", form).dataset.log || "[]"); continue; }
+        if (f.type === "days") { out[f.name] = $$(`input[name="${f.name}"]:checked`, form).map((i) => +i.value); if (f.required && !out[f.name].length) bad = bad || f.label; continue; }
         const el = form.elements[f.name]; if (!el || f.disabled) continue;
         let v = f.type === "check" ? el.checked : el.value.trim();
         if (f.type === "number") v = v === "" ? null : Number(v);
@@ -156,6 +181,7 @@
       const btn = $("button[type=submit]", form); btn.disabled = true;
       try { await onSave(out); closeModal(); } catch (_) { /* xato toast orqali ko'rsatildi */ } finally { btn.disabled = false; }
     });
+    onOpen && onOpen(form);
   }
 
   /* ---------------- auth ---------------- */
@@ -171,6 +197,7 @@
     $("#auth").hidden = true; $("#app").hidden = false;
     $("#userEmail").textContent = session.user.email;
     loadCourses().then(updateLeadsCount).catch(() => {});
+    await runAutoFinish();
     route();
   }
   $("#loginForm").addEventListener("submit", async (e) => {
@@ -188,18 +215,22 @@
   /* ---------------- router ---------------- */
   const VIEWS = {
     stat: ["Statistika", viewStat], leads: ["Arizalar", viewLeads], courses: ["Kurslar", viewCourses],
-    teachers: ["Ustozlar", viewTeachers], attendance: ["Davomat", viewAttendance], certs: ["Sertifikatlar", viewCerts], settings: ["Sozlamalar", viewSettings],
+    teachers: ["Ustozlar", viewTeachers], groups: ["Guruhlar", viewGroups], group: ["Guruh", viewGroup], students: ["O'quvchilar", viewStudents],
+    attendance: ["Ustozlar davomati", viewAttendance], certs: ["Sertifikatlar", viewCerts], settings: ["Sozlamalar", viewSettings],
   };
   function route() {
     if ($("#app").hidden) return;
-    const key = VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : "stat";
-    $$("#sideNav a").forEach((a) => a.classList.toggle("is-active", a.dataset.view === key));
+    if (modal.classList.contains("is-open")) closeModal();
+    const [k, arg] = location.hash.slice(1).split("/");
+    const key = VIEWS[k] ? k : "stat";
+    const navKey = key === "group" ? "groups" : key;
+    $$("#sideNav a").forEach((a) => a.classList.toggle("is-active", a.dataset.view === navKey));
     $("#viewTitle").textContent = VIEWS[key][0];
     $("#viewActions").innerHTML = "";
     $("#view").onclick = null;
     $("#view").innerHTML = `<div class="empty">Yuklanmoqda...</div>`;
     $("#app").classList.remove("is-nav");
-    VIEWS[key][1]().catch(() => { $("#view").innerHTML = `<div class="card empty"><b>Ma'lumot yuklanmadi</b>Sahifani yangilab ko'ring.</div>`; });
+    VIEWS[key][1](arg && decodeURIComponent(arg)).catch(() => { $("#view").innerHTML = `<div class="card empty"><b>Ma'lumot yuklanmadi</b>Sahifani yangilab ko'ring.</div>`; });
   }
   addEventListener("hashchange", route);
   $("#burger").addEventListener("click", () => $("#app").classList.toggle("is-nav"));
@@ -212,6 +243,22 @@
     const { count } = await sb.from("leads").select("id", { count: "exact", head: true }).eq("status", "new");
     $("#leadsCount").textContent = count ? count : "";
   }
+  async function updateCertCount() {
+    const { count, error } = await sb.from("certificates").select("id", { count: "exact", head: true }).eq("status", "pending");
+    $("#certsCount").textContent = !error && count ? count : "";
+  }
+  // muddati tugagan guruhlarni yakunlab, sertifikatlarni avtomatik yaratish
+  async function runAutoFinish() {
+    try {
+      const { data, error } = await sb.rpc("finish_due_groups");
+      if (!error && data > 0) toast(`Muddati tugagan guruhlar yakunlandi — ${data} ta sertifikat tasdiqlashni kutmoqda`);
+    } catch (_) { /* crm.sql hali ishga tushirilmagan bo'lishi mumkin */ }
+    updateCertCount().catch(() => {});
+  }
+  async function loadTeachers() { state.teachers = await q(sb.from("teachers").select("id,name,role,course_id,active").order("sort")); return state.teachers; }
+  const teacherOpts = () => ({ "": "— tanlanmagan —", ...Object.fromEntries((state.teachers || []).map((t) => [t.id, t.name + (t.role ? " · " + t.role : "")])) });
+  const teacherName = (id) => ((state.teachers || []).find((t) => t.id === id) || {}).name || "—";
+  const courseOf = (id) => state.courses.find((c) => c.id === id) || {};
 
   /* ================= STATISTIKA ================= */
   async function viewStat() {
@@ -231,7 +278,26 @@
     const devs = br.devices || {}, devTotal = Object.values(devs).reduce((a, b) => a + b, 0) || 1;
     const DEV = { mobile: "📱 Telefon", tablet: "📟 Planshet", desktop: "🖥 Kompyuter" };
     const refs = br.referrers || [], refMax = Math.max(1, ...refs.map((r) => r.count));
-    $("#view").innerHTML = `
+    // CRM ko'rsatkichlari (crm.sql ishga tushirilmagan bo'lsa — ko'rsatilmaydi)
+    let crmHtml = "";
+    try {
+      const [ga, st, cp, mt] = await Promise.all([
+        sb.from("groups").select("id", { count: "exact", head: true }).eq("status", "active"),
+        sb.from("students").select("id", { count: "exact", head: true }),
+        sb.from("certificates").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        sb.from("marks").select("status").eq("day", today()),
+      ]);
+      if (!ga.error && !st.error && !cp.error && !mt.error) {
+        const came = mt.data.filter((m) => m.status !== 0).length;
+        crmHtml = `<div class="kpis">
+          <a class="kpi" href="#groups" style="--k:#dcf6ea"><small>Faol guruhlar</small><b>${num(ga.count)}</b><em class="flat">Guruhlarni ochish →</em></a>
+          <a class="kpi" href="#students" style="--k:#e3f2fd"><small>O'quvchilar</small><b>${num(st.count)}</b><em class="flat">Jami ro'yxatda</em></a>
+          <div class="kpi" style="--k:#efe9fd"><small>Bugungi davomat</small><b>${mt.data.length ? Math.round(came / mt.data.length * 100) + "%" : "—"}</b><em class="flat">${mt.data.length ? `${came} / ${mt.data.length} o'quvchi keldi` : "Bugun hali belgilanmagan"}</em></div>
+          <a class="kpi" href="#certs" style="--k:#fff4d6"><small>Tasdiqlash kutayotgan sertifikatlar</small><b>${num(cp.count)}</b><em class="${cp.count ? "up" : "flat"}">${cp.count ? "Tasdiqlash →" : "Hammasi tasdiqlangan"}</em></a>
+        </div>`;
+      }
+    } catch (_) { /* ixtiyoriy */ }
+    $("#view").innerHTML = `${crmHtml}
       <div class="kpis">
         <div class="kpi" style="--k:#dcf6ea"><small>Bugungi tashrifchilar</small><b>${num(today.visitors)}</b>${delta(today.visitors, yest.visitors)}</div>
         <div class="kpi" style="--k:#e3f2fd"><small>Bugungi sahifa ko'rishlar</small><b>${num(today.views)}</b>${delta(today.views, yest.views)}</div>
@@ -258,6 +324,7 @@
   function drawChart(el, data) {
     const render = () => {
       const W = el.clientWidth, H = el.clientHeight, pl = 34, pr = 8, pt = 10, pb = 26;
+      if (W < 80 || H < 60) return; // konteyner hali chizilmagan
       const iw = W - pl - pr, ih = H - pt - pb, n = data.length;
       const max = Math.max(4, ...data.map((d) => Math.max(+d.views, +d.visitors)));
       const mag = Math.pow(10, Math.floor(Math.log10(max)));
@@ -322,7 +389,7 @@
         <td>${esc(courseName(r.course))}${r.time ? `<span class="sub">${esc(r.time)}</span>` : ""}</td>
         <td style="max-width:260px">${esc(r.message || "—")}</td>
         <td><select class="status pill--${r.status}" data-id="${r.id}">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${k === r.status ? "selected" : ""}>${v}</option>`).join("")}</select></td>
-        <td><div class="actions"><button class="icon-btn del" data-del="${r.id}" title="O'chirish">🗑</button></div></td></tr>`).join("")
+        <td><div class="actions">${r.type !== "teacher" ? `<button class="icon-btn" data-stu="${r.id}" title="O'quvchiga aylantirish">👤</button>` : ""}<button class="icon-btn del" data-del="${r.id}" title="O'chirish">🗑</button></div></td></tr>`).join("")
         : `<tr><td colspan="7"><div class="empty"><b>Arizalar yo'q</b>Saytdagi formalar orqali kelgan arizalar shu yerda chiqadi.</div></td></tr>`;
     };
     draw();
@@ -334,6 +401,17 @@
       toast("Holat yangilandi"); updateLeadsCount();
     });
     $("#ltb").addEventListener("click", async (e) => {
+      const st = e.target.closest("[data-stu]");
+      if (st) {
+        const r = rows.find((x) => String(x.id) === st.dataset.stu);
+        return studentModal({
+          title: "Arizadan o'quvchi yaratish", values: { full_name: r.name, phone: r.phone, note: r.message || "" }, leadId: r.id, courseHint: r.course,
+          onSaved: async () => {
+            await q(sb.from("leads").update({ status: "done" }).eq("id", r.id));
+            r.status = "done"; draw(); updateLeadsCount();
+          },
+        });
+      }
       const b = e.target.closest("[data-del]"); if (!b) return;
       if (!(await confirmDlg("Bu ariza butunlay o'chiriladi. Davom etasizmi?"))) return;
       await q(sb.from("leads").delete().eq("id", b.dataset.del));
@@ -361,14 +439,15 @@
       <div class="ent" style="--soft:${esc(c.soft)};--c:${esc(c.color)}">
         <div class="ent__img">📘${c.image ? `<img src="${esc(imgUrl(c.image))}" alt="" />` : ""}<span class="pill ${c.active ? "pill--done" : "pill--off"}">${c.active ? "Saytda" : "Yashirin"}</span></div>
         <div class="ent__body"><h4>${esc(c.title)}</h4><p>${esc(CATS[c.cat])} · ${esc(c.duration || "")} · ${esc(c.price || "")} so'm</p></div>
-        <div class="ent__foot"><span class="muted" style="font-size:12px">#${c.sort ?? ""} · ${esc(c.id)}</span><div class="actions"><button class="icon-btn" data-edit="${esc(c.id)}" title="Tahrirlash">✏️</button><button class="icon-btn del" data-del="${esc(c.id)}" title="O'chirish">🗑</button></div></div>
+        <div class="ent__foot"><span class="muted" style="font-size:12px">#${c.sort ?? ""} · ${esc(c.id)}</span><div class="actions"><button class="icon-btn" data-newgroup="${esc(c.id)}" title="Shu kursga yangi guruh ochish">👥</button><button class="icon-btn" data-edit="${esc(c.id)}" title="Tahrirlash">✏️</button><button class="icon-btn del" data-del="${esc(c.id)}" title="O'chirish">🗑</button></div></div>
       </div>`).join("")}</div>` : `<div class="card empty"><b>Kurslar yo'q</b>"+ Yangi kurs" tugmasi orqali qo'shing.</div>`;
     $("#addCourse").onclick = () => formModal({
       title: "Yangi kurs", fields: courseFields(true), values: { color: "#22c58b", soft: "#e3f7ee", sort: state.courses.length + 1, active: true },
       onSave: async (v) => { await q(sb.from("courses").insert(v)); toast("Kurs qo'shildi"); viewCourses(); },
     });
     $("#view").onclick = async (e) => {
-      const ed = e.target.closest("[data-edit]"), dl = e.target.closest("[data-del]");
+      const ed = e.target.closest("[data-edit]"), dl = e.target.closest("[data-del]"), ng = e.target.closest("[data-newgroup]");
+      if (ng) return groupModal({ values: { course_id: ng.dataset.newgroup } });
       if (ed) {
         const c = state.courses.find((x) => x.id === ed.dataset.edit);
         formModal({ title: "Kursni tahrirlash", fields: courseFields(false), values: c, onSave: async (v) => { await q(sb.from("courses").update(v).eq("id", c.id)); toast("Saqlandi"); viewCourses(); } });
@@ -429,7 +508,7 @@
     if (!state.courses.length) await loadCourses();
     const rows = await q(sb.from("attendance").select("*").order("code"));
     actions(`<button class="btn btn--primary" id="addA">+ Yangi o'quvchi / ustoz</button>`);
-    $("#view").innerHTML = `<div class="card">
+    $("#view").innerHTML = `<div class="tplhint">ℹ️ O'quvchilar davomati endi <a class="link" href="#groups">Guruhlar</a> bo'limida olinadi. Bu sahifa ustozlar va eski kodlar (MG-1001 kabi) davomati uchun qoldirildi.</div><div class="card">
       <div class="toolbar"><input class="input" id="aq" placeholder="🔍 Kod yoki ism" />
         <select class="input" id="at"><option value="">Hammasi</option><option value="student">O'quvchilar</option><option value="teacher">Ustozlar</option></select>
         <select class="input" id="ac"><option value="">Barcha kurslar</option>${state.courses.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join("")}</select>
@@ -473,27 +552,383 @@
     };
   }
 
+  /* ================= GURUHLAR ================= */
+  const GSTATUS = { active: "Faol", finished: "Yakunlangan" };
+  const firstNum = (s) => { const m = String(s || "").match(/\d+/); return m ? +m[0] : ""; };
+  const daysText = (g) => (g.days || []).slice().sort().map((d) => WD[d]).join(", ");
+  const groupProgress = (g) => {
+    const total = Math.max(1, daysBetween(g.start_date, g.end_date) + 1);
+    const done = Math.min(total, Math.max(0, daysBetween(g.start_date, today()) + 1));
+    return { pct: g.status === "finished" ? 100 : Math.round(done / total * 100), left: Math.max(0, daysBetween(today(), g.end_date)) };
+  };
+
+  async function groupModal({ values = {}, group = null } = {}) {
+    await Promise.all([state.courses.length ? null : loadCourses(), state.teachers ? null : loadTeachers()]);
+    const isNew = !group;
+    const v0 = isNew ? { start_date: today(), days: [1, 3, 5], ...values } : { ...group };
+    if (isNew && v0.course_id && !v0.months) v0.months = firstNum(courseOf(v0.course_id).duration);
+    if (isNew && v0.months && !v0.end_date) v0.end_date = addDays(addMonths(v0.start_date, +v0.months), -1);
+    if (isNew && v0.course_id && !v0.teacher_id) v0.teacher_id = ((state.teachers || []).find((t) => t.course_id === v0.course_id) || {}).id || "";
+    formModal({
+      title: isNew ? "Yangi guruh" : "Guruhni tahrirlash",
+      values: v0,
+      fields: [
+        { group: [{ name: "course_id", label: "Kurs", type: "select", required: true, options: courseOpts("— kursni tanlang —") }, { name: "name", label: "Guruh nomi", required: true, placeholder: "IT-25 (ertalab)" }] },
+        { group: [{ name: "teacher_id", label: "Ustoz", type: "select", options: teacherOpts() }, { name: "room", label: "Xona", placeholder: "2-xona" }] },
+        { type: "sub", label: "Davomiyligi" },
+        { group: [{ name: "start_date", label: "Boshlanish sanasi", type: "date", required: true }, { name: "months", label: "Davomiyligi (oy)", type: "number", placeholder: "8" }, { name: "end_date", label: "Tugash sanasi", type: "date", required: true }] },
+        { type: "hint", label: "Oy sonini kiritsangiz, tugash sanasi avtomatik hisoblanadi. Tugash sanasidan keyingi kuni guruh avtomatik yakunlanadi va o'quvchilarga sertifikat yaratiladi (tasdiqlaganingizdan keyin faollashadi)." },
+        { group: [{ name: "days", label: "Dars kunlari", type: "days", required: true }, { name: "time", label: "Dars vaqti", placeholder: "14:00 — 16:00" }] },
+      ],
+      onOpen: (form) => {
+        const E = form.elements;
+        const calc = () => { const m = +E.months.value; if (E.start_date.value && m > 0) E.end_date.value = addDays(addMonths(E.start_date.value, m), -1); };
+        E.months.addEventListener("input", calc);
+        E.start_date.addEventListener("change", calc);
+        E.end_date.addEventListener("input", () => { E.months.value = ""; });
+        E.course_id.addEventListener("change", () => {
+          const c = courseOf(E.course_id.value);
+          if (!E.months.value && firstNum(c.duration)) { E.months.value = firstNum(c.duration); calc(); }
+          if (!E.teacher_id.value) { const t = (state.teachers || []).find((x) => x.course_id === c.id); if (t) E.teacher_id.value = t.id; }
+        });
+      },
+      onSave: async (v) => {
+        delete v.months;
+        if (v.end_date < v.start_date) { toast("Tugash sanasi boshlanish sanasidan oldin bo'lishi mumkin emas", true); throw new Error("dates"); }
+        if (isNew) {
+          const row = await q(sb.from("groups").insert(v).select().single());
+          toast("Guruh yaratildi — endi o'quvchilarni qo'shing");
+          state.gTab = "students"; location.hash = "group/" + row.id;
+        } else {
+          // muddat uzaytirilsa — guruh qaytadan faol bo'ladi
+          if (group.status === "finished" && v.end_date >= today()) { v.status = "active"; v.finished_at = null; }
+          await q(sb.from("groups").update(v).eq("id", group.id));
+          toast("Saqlandi"); route();
+        }
+      },
+    });
+  }
+
+  async function viewGroups() {
+    await Promise.all([loadCourses(), loadTeachers()]);
+    const rows = await q(sb.from("groups").select("*, group_students(count)").order("start_date", { ascending: false }));
+    const f = state.gFilter || "active";
+    const cnt = (s) => rows.filter((r) => !s || r.status === s).length;
+    actions(`<div class="seg" id="gSeg">${[["active", "Faol"], ["finished", "Yakunlangan"], ["", "Hammasi"]].map(([k, t]) => `<button data-f="${k}" class="${k === f ? "is-active" : ""}">${t} · ${cnt(k)}</button>`).join("")}</div><button class="btn btn--primary" id="addG">+ Yangi guruh</button>`);
+    $("#view").innerHTML = `<div class="toolbar"><input class="input" id="gq" placeholder="🔍 Guruh yoki ustoz" /><select class="input" id="gc"><option value="">Barcha kurslar</option>${state.courses.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join("")}</select></div><div id="glist"></div>`;
+    const draw = () => {
+      const qv = $("#gq").value.trim().toLowerCase(), cv = $("#gc").value;
+      const list = rows.filter((r) => (!f || r.status === f) && (!cv || r.course_id === cv) && (!qv || `${r.name} ${teacherName(r.teacher_id)}`.toLowerCase().includes(qv)));
+      $("#glist").innerHTML = list.length ? `<div class="groups">${list.map((g) => {
+        const c = courseOf(g.course_id), p = groupProgress(g), n = (g.group_students && g.group_students[0] && g.group_students[0].count) || 0;
+        return `<a class="grp" href="#group/${g.id}" style="--c:${esc(c.color || "#22c58b")};--soft:${esc(c.soft || "#e3f7ee")}">
+          <div class="grp__top"><span class="pill grp__course">${esc(c.title || "Kurs tanlanmagan")}</span><span class="pill ${g.status === "active" ? "pill--done" : "pill--off"}">${GSTATUS[g.status]}</span></div>
+          <h4>${esc(g.name)}</h4>
+          <div class="grp__meta"><span>👩‍🏫 ${esc(teacherName(g.teacher_id))}</span><span>📅 ${longDay(g.start_date, { day: "numeric", month: "short", year: "numeric" })} — ${longDay(g.end_date, { day: "numeric", month: "short", year: "numeric" })}</span><span>🕒 ${esc(daysText(g))}${g.time ? " · " + esc(g.time) : ""}</span><span>👥 ${n} ta o'quvchi${g.room ? " · " + esc(g.room) : ""}</span></div>
+          <div class="prog"><i style="width:${p.pct}%"></i></div>
+          <small>${g.status === "finished" ? "Yakunlangan" : g.start_date > today() ? `${daysBetween(today(), g.start_date)} kundan keyin boshlanadi` : `${p.pct}% o'tdi · ${p.left} kun qoldi`}</small>
+        </a>`;
+      }).join("")}</div>` : `<div class="card empty"><b>Guruhlar yo'q</b>${rows.length ? "Filtrni o'zgartirib ko'ring." : `"+ Yangi guruh" tugmasi orqali birinchi guruhni oching.`}</div>`;
+    };
+    draw();
+    ["#gq", "#gc"].forEach((s) => $(s).addEventListener("input", draw));
+    $("#gSeg").onclick = (e) => { const b = e.target.closest("[data-f]"); if (b) { state.gFilter = b.dataset.f; viewGroups(); } };
+    $("#addG").onclick = () => groupModal();
+  }
+
+  const CSTATUS = { pending: ["Tasdiqlash kutilmoqda", "pill--contacted"], active: ["Amalda", "pill--done"], revoked: ["Bekor qilingan", "pill--rejected"] };
+  const certState = (c) => c.revoked ? "revoked" : c.status === "pending" ? "pending" : "active";
+
+  async function viewGroup(id) {
+    await Promise.all([state.courses.length ? null : loadCourses(), loadTeachers()]);
+    const [g, members, marks, certs] = await Promise.all([
+      q(sb.from("groups").select("*").eq("id", id).maybeSingle()),
+      fetchAll(() => sb.from("group_students").select("joined_at, students(*)").eq("group_id", id)),
+      fetchAll(() => sb.from("marks").select("student_id,day,status").eq("group_id", id).order("day")),
+      q(sb.from("certificates").select("id,number,status,revoked,student_id").eq("group_id", id)),
+    ]);
+    if (!g) { $("#view").innerHTML = `<div class="card empty"><b>Guruh topilmadi</b><a class="link" href="#groups">← Guruhlar ro'yxatiga qaytish</a></div>`; return; }
+    const c = courseOf(g.course_id), p = groupProgress(g);
+    $("#viewTitle").textContent = g.name;
+    const studs = members.filter((m) => m.students).map((m) => ({ ...m.students, joined_at: m.joined_at })).sort((a, b) => a.full_name.localeCompare(b.full_name));
+    const mk = new Map(marks.map((m) => [m.student_id + "|" + m.day, m.status]));
+    const certBy = Object.fromEntries(certs.map((x) => [x.student_id, x]));
+    const pctFor = (sid) => { const l = marks.filter((m) => m.student_id === sid); return l.length ? Math.round(l.filter((m) => m.status !== 0).length / l.length * 100) : null; };
+    const planned = lessonDays(g), passed = lessonDays(g, today());
+
+    actions(`<a class="btn btn--ghost" href="#groups">← Guruhlar</a><button class="btn btn--ghost" id="gEdit">✏️ Tahrirlash</button>${g.status === "active"
+      ? `<button class="btn btn--primary" id="gFinish">🏁 Yakunlash va sertifikat yaratish</button>`
+      : `<button class="btn btn--primary" id="gIssue">🎓 Yetishmayotgan sertifikatlarni yaratish</button>`}<button class="icon-btn del" id="gDel" title="Guruhni o'chirish">🗑</button>`);
+
+    const tab = state.gTab || "att";
+    $("#view").innerHTML = `
+      <div class="card ghead-card" style="--c:${esc(c.color || "#22c58b")}">
+        <div class="ghead">
+          <div><small>Kurs</small><b>${esc(c.title || "—")}</b></div>
+          <div><small>Ustoz</small><b>${esc(teacherName(g.teacher_id))}</b></div>
+          <div><small>Muddat</small><b>${longDay(g.start_date, { day: "numeric", month: "short", year: "numeric" })} — ${longDay(g.end_date, { day: "numeric", month: "short", year: "numeric" })}</b></div>
+          <div><small>Jadval</small><b>${esc(daysText(g))}${g.time ? " · " + esc(g.time) : ""}</b></div>
+          <div><small>Darslar</small><b>${passed.length} / ${planned.length} o'tildi</b></div>
+          <div><small>Holat</small><b><span class="pill ${g.status === "active" ? "pill--done" : "pill--off"}">${GSTATUS[g.status]}</span></b></div>
+        </div>
+        <div class="prog" style="margin-top:16px"><i style="width:${p.pct}%"></i></div>
+      </div>
+      <div class="seg tabs" id="gTabs">${[["att", "✅ Davomat olish"], ["students", `👥 O'quvchilar · ${studs.length}`], ["journal", "📒 Jurnal"]].map(([k, t]) => `<button data-t="${k}" class="${k === tab ? "is-active" : ""}">${t}</button>`).join("")}</div>
+      <div id="gBody"></div>`;
+    $("#gTabs").onclick = (e) => { const b = e.target.closest("[data-t]"); if (b) { state.gTab = b.dataset.t; viewGroup(id); } };
+    $("#gEdit").onclick = () => groupModal({ group: g });
+    $("#gDel").onclick = async () => {
+      if (!(await confirmDlg(`"${g.name}" guruhi, uning a'zoligi va davomat belgilari o'chiriladi. Yaratilgan sertifikatlar saqlanib qoladi.`))) return;
+      await q(sb.from("groups").delete().eq("id", g.id)); toast("Guruh o'chirildi"); location.hash = "groups";
+    };
+    const afterIssue = (n) => { toast(n ? `${n} ta sertifikat yaratildi — "Sertifikatlar" bo'limida tasdiqlang` : "Yangi sertifikat yaratilmadi (hammasida bor)"); updateCertCount(); viewGroup(id); };
+    if ($("#gFinish")) $("#gFinish").onclick = async () => {
+      if (!studs.length) { toast("Guruhda o'quvchi yo'q", true); return; }
+      if (!(await confirmDlg(`Guruh hozir yakunlanadi va ${studs.length} ta o'quvchiga sertifikat yaratiladi (tasdiqlashingiz kerak bo'ladi). Odatda bu tugash sanasidan keyin avtomatik bajariladi.`, "Ha, yakunlash"))) return;
+      afterIssue(await q(sb.rpc("finish_group", { p_group: g.id })));
+    };
+    if ($("#gIssue")) $("#gIssue").onclick = async () => afterIssue(await q(sb.rpc("issue_group_certificates", { p_group: g.id })));
+
+    const body = $("#gBody");
+    const noStuds = `<div class="card empty"><b>Guruhda hali o'quvchi yo'q</b><button class="btn btn--primary" id="gAdd0" style="margin-top:12px">+ O'quvchi qo'shish</button></div>`;
+    const openAdd = () => addStudentsModal(g, new Set(studs.map((s) => s.id)), () => { state.gTab = "students"; viewGroup(id); });
+
+    /* --- O'quvchilar --- */
+    if (tab === "students") {
+      body.innerHTML = studs.length ? `<div class="card">
+        <div class="card__head"><h3>O'quvchilar ro'yxati</h3><button class="btn btn--primary btn--sm" id="gAdd">+ O'quvchi qo'shish</button></div>
+        <div class="table-wrap"><table><thead><tr><th>#</th><th>Kod</th><th>Ism / telefon</th><th>Ota-ona</th><th>Qo'shilgan</th><th class="num">Davomat</th><th>Sertifikat</th><th></th></tr></thead><tbody>
+        ${studs.map((s, i) => { const pc = pctFor(s.id), ct = certBy[s.id]; return `<tr>
+          <td class="muted">${i + 1}</td>
+          <td><b class="mono">${esc(s.code)}</b></td>
+          <td><b>${esc(s.full_name)}</b>${s.phone ? `<a class="sub" href="tel:${esc(s.phone.replace(/\s/g, ""))}">${esc(s.phone)}</a>` : ""}</td>
+          <td>${s.parent_phone ? `<a href="tel:${esc(s.parent_phone.replace(/\s/g, ""))}">${esc(s.parent_phone)}</a>` : '<span class="muted">—</span>'}</td>
+          <td style="white-space:nowrap">${longDay(s.joined_at, { day: "numeric", month: "short", year: "numeric" })}</td>
+          <td class="num">${pc == null ? '<span class="muted">—</span>' : `<span class="pct ${pc >= 85 ? "good" : "bad"}">${pc}%</span>`}</td>
+          <td>${ct ? `<a href="#certs" class="pill ${CSTATUS[certState(ct)][1]}">${CSTATUS[certState(ct)][0]}</a>` : '<span class="muted">—</span>'}</td>
+          <td><div class="actions"><button class="icon-btn" data-sedit="${s.id}" title="Tahrirlash">✏️</button><button class="icon-btn del" data-rm="${s.id}" title="Guruhdan chiqarish">✕</button></div></td></tr>`; }).join("")}
+        </tbody></table></div></div>` : noStuds;
+      if ($("#gAdd")) $("#gAdd").onclick = openAdd;
+      body.onclick = async (e) => {
+        if (e.target.closest("#gAdd0")) return openAdd();
+        const ed = e.target.closest("[data-sedit]"), rm = e.target.closest("[data-rm]");
+        if (ed) studentModal({ student: studs.find((s) => s.id === ed.dataset.sedit), onSaved: () => viewGroup(id) });
+        if (rm) {
+          const s = studs.find((x) => x.id === rm.dataset.rm);
+          if (!(await confirmDlg(`${s.full_name} guruhdan chiqariladi va shu guruhdagi davomat belgilari o'chadi. O'quvchining o'zi ro'yxatda qoladi.`, "Ha, chiqarish"))) return;
+          await q(sb.from("group_students").delete().eq("group_id", g.id).eq("student_id", s.id)); toast("Guruhdan chiqarildi"); viewGroup(id);
+        }
+      };
+      return;
+    }
+
+    /* --- Davomat olish --- */
+    if (tab === "att") {
+      if (!studs.length) { body.innerHTML = noStuds; body.onclick = (e) => { if (e.target.closest("#gAdd0")) openAdd(); }; return; }
+      const lastDay = today() < g.end_date ? today() : g.end_date;
+      // standart: bugun (dars kuni bo'lsa), aks holda oxirgi o'tilgan dars kuni
+      const defDay = passed.includes(lastDay) ? lastDay : passed[passed.length - 1] || (g.start_date <= lastDay ? lastDay : g.start_date);
+      let day = (state.attDays || {})[g.id] >= g.start_date && (state.attDays || {})[g.id] <= lastDay ? state.attDays[g.id] : defDay;
+      const draft = {};
+      const render = () => {
+        studs.forEach((s) => { if (!(s.id in draft)) { const v = mk.get(s.id + "|" + day); draft[s.id] = v == null ? null : v; } });
+        const isLesson = (g.days || []).map(Number).includes(dow(day));
+        const marked = studs.filter((s) => mk.has(s.id + "|" + day)).length;
+        body.innerHTML = `<div class="card">
+          <div class="card__head">
+            <div class="attday"><button class="icon-btn" id="dPrev" title="Oldingi dars">‹</button><input class="input" type="date" id="dDay" value="${day}" min="${g.start_date}" max="${lastDay}" /><button class="icon-btn" id="dNext" title="Keyingi dars">›</button>
+              <span class="muted" style="font-size:13px;font-weight:700">${longDay(day, { weekday: true, day: "numeric", month: "long" })}</span></div>
+            <div class="actions"><button class="btn btn--ghost btn--sm" id="allCame">Hammasi keldi</button></div>
+          </div>
+          ${!isLesson ? `<div class="tplhint">Bu kun guruh jadvali bo'yicha dars kuni emas (${esc(daysText(g))}). Qo'shimcha dars bo'lsa, baribir belgilashingiz mumkin.</div>` : ""}
+          ${g.start_date > today() ? `<div class="tplhint">Guruh hali boshlanmagan — davomatni ${longDay(g.start_date, { day: "numeric", month: "long" })} dan olish mumkin.</div>` : ""}
+          <div class="attlist">${studs.map((s, i) => `<div class="attrow"><span class="muted">${i + 1}</span><div><b>${esc(s.full_name)}</b><small class="mono">${esc(s.code)}</small></div>
+            <div class="marks3" data-sid="${s.id}">${[[1, "Keldi"], [0, "Kelmadi"], [2, "Sababli"]].map(([v, t]) => `<button type="button" data-v="${v}" class="${draft[s.id] === v ? "is-on s" + v : ""}">${t}</button>`).join("")}</div></div>`).join("")}</div>
+          <div class="modal__foot"><span class="muted" style="margin-right:auto;align-self:center;font-size:13px">${marked ? `Bu kun ${marked} / ${studs.length} o'quvchi belgilangan` : "Bu kun hali belgilanmagan"}</span><button class="btn btn--primary" id="attSave" ${g.start_date > today() ? "disabled" : ""}>Saqlash</button></div>
+        </div>`;
+        const go = (d) => { (state.attDays = state.attDays || {})[g.id] = d; day = d; Object.keys(draft).forEach((k) => delete draft[k]); render(); };
+        $("#dDay").onchange = (e) => { const v = e.target.value; if (v && v >= g.start_date && v <= lastDay) go(v); else e.target.value = day; };
+        $("#dPrev").onclick = () => { const d = [...passed].reverse().find((x) => x < day); if (d) go(d); };
+        $("#dNext").onclick = () => { const d = passed.find((x) => x > day); if (d) go(d); };
+        $("#allCame").onclick = () => { studs.forEach((s) => (draft[s.id] = 1)); render(); };
+        $(".attlist", body).onclick = (e) => {
+          const b = e.target.closest("[data-v]"); if (!b) return;
+          const sid = b.parentElement.dataset.sid, v = +b.dataset.v;
+          draft[sid] = draft[sid] === v ? null : v;
+          $$("button", b.parentElement).forEach((x) => { const on = draft[sid] === +x.dataset.v; x.className = on ? "is-on s" + x.dataset.v : ""; });
+        };
+        $("#attSave").onclick = async () => {
+          const up = studs.filter((s) => draft[s.id] != null).map((s) => ({ group_id: g.id, student_id: s.id, day, status: draft[s.id], updated_at: new Date().toISOString() }));
+          const del = studs.filter((s) => draft[s.id] == null && mk.has(s.id + "|" + day)).map((s) => s.id);
+          if (!up.length && !del.length) { toast("Hech kim belgilanmadi", true); return; }
+          if (up.length) await q(sb.from("marks").upsert(up));
+          if (del.length) await q(sb.from("marks").delete().eq("group_id", g.id).eq("day", day).in("student_id", del));
+          up.forEach((r) => mk.set(r.student_id + "|" + day, r.status));
+          del.forEach((sid) => mk.delete(sid + "|" + day));
+          const missing = studs.length - up.length;
+          toast(`Davomat saqlandi${missing ? ` · ${missing} ta o'quvchi belgilanmadi` : ""}`);
+          render();
+        };
+      };
+      render();
+      return;
+    }
+
+    /* --- Jurnal --- */
+    if (!studs.length) { body.innerHTML = noStuds; body.onclick = (e) => { if (e.target.closest("#gAdd0")) openAdd(); }; return; }
+    const days = [...new Set([...passed, ...marks.map((m) => m.day)])].sort();
+    const L = { 1: "✓", 0: "✗", 2: "S" };
+    body.innerHTML = `<div class="card">
+      <div class="card__head"><h3>Davomat jurnali</h3><div class="actions"><span class="legend"><span><i class="s1"></i>Keldi</span><span><i class="s0"></i>Kelmadi</span><span><i class="s2"></i>Sababli</span></span><button class="btn btn--ghost btn--sm" id="jCsv">⬇ Excel (CSV)</button></div></div>
+      <p class="muted" style="font-size:13px;margin:-6px 0 12px">Katakni bosib holatni o'zgartiring: keldi → kelmadi → sababli → bo'sh.</p>
+      ${days.length ? `<div class="table-wrap"><table class="jgrid"><thead><tr><th class="sticky">O'quvchi</th>${days.map((d) => `<th class="c" title="${longDay(d, { weekday: true, day: "numeric", month: "long" })}">${fmtDay(d)}</th>`).join("")}<th class="num">%</th></tr></thead><tbody>
+        ${studs.map((s) => { const pc = pctFor(s.id); return `<tr><td class="sticky"><b>${esc(s.full_name)}</b></td>${days.map((d) => { const v = mk.get(s.id + "|" + d); return `<td class="c"><button class="jcell ${v == null ? "" : "s" + v}" data-sid="${s.id}" data-d="${d}">${v == null ? "" : L[v]}</button></td>`; }).join("")}<td class="num">${pc == null ? "—" : `<span class="pct ${pc >= 85 ? "good" : "bad"}">${pc}%</span>`}</td></tr>`; }).join("")}
+      </tbody></table></div>` : `<div class="empty"><b>Hali darslar o'tilmagan</b>Guruh boshlangandan keyin bu yerda jurnal chiqadi.</div>`}
+    </div>`;
+    body.onclick = async (e) => {
+      const b = e.target.closest(".jcell"); if (!b) return;
+      const key = b.dataset.sid + "|" + b.dataset.d, cur = mk.get(key);
+      const next = cur == null ? 1 : cur === 1 ? 0 : cur === 0 ? 2 : null;
+      if (next == null) await q(sb.from("marks").delete().eq("group_id", g.id).eq("student_id", b.dataset.sid).eq("day", b.dataset.d));
+      else await q(sb.from("marks").upsert({ group_id: g.id, student_id: b.dataset.sid, day: b.dataset.d, status: next, updated_at: new Date().toISOString() }));
+      if (next == null) mk.delete(key); else mk.set(key, next);
+      b.className = "jcell " + (next == null ? "" : "s" + next); b.textContent = next == null ? "" : L[next];
+    };
+    if ($("#jCsv")) $("#jCsv").onclick = () => downloadCSV(`jurnal-${g.name}.csv`, [["Kod", "O'quvchi", ...days, "Davomat %"], ...studs.map((s) => [s.code, s.full_name, ...days.map((d) => { const v = mk.get(s.id + "|" + d); return v == null ? "" : v === 1 ? "+" : v === 0 ? "-" : "S"; }), pctFor(s.id) ?? ""])]);
+  }
+
+  async function addStudentsModal(g, existing, onDone) {
+    const all = await fetchAll(() => sb.from("students").select("id,code,full_name,phone").order("full_name"));
+    const avail = all.filter((s) => !existing.has(s.id));
+    const sel = new Set();
+    openModal(`<h3>«${esc(g.name)}» guruhiga o'quvchi qo'shish</h3>
+      <div class="toolbar"><input class="input" id="psq" placeholder="🔍 Ism, kod yoki telefon" style="max-width:none;flex:1" /><button class="btn btn--ghost" id="psNew">+ Yangi o'quvchi</button></div>
+      <div class="picklist" id="psl"></div>
+      <div class="modal__foot"><span class="muted" id="psc" style="margin-right:auto;align-self:center;font-size:13px;font-weight:700"></span><button class="btn btn--ghost" data-close>Bekor qilish</button><button class="btn btn--primary" id="psOk">Qo'shish</button></div>`);
+    const draw = () => {
+      const qv = $("#psq").value.trim().toLowerCase();
+      const list = avail.filter((s) => !qv || `${s.full_name} ${s.code} ${s.phone || ""}`.toLowerCase().includes(qv));
+      $("#psl").innerHTML = list.length ? list.slice(0, 300).map((s) => `<label class="pick"><input type="checkbox" value="${s.id}" ${sel.has(s.id) ? "checked" : ""} /><b>${esc(s.full_name)}</b><span>${esc(s.code)}${s.phone ? " · " + esc(s.phone) : ""}</span></label>`).join("")
+        : `<div class="empty"><b>${avail.length ? "Topilmadi" : "Qo'shiladigan o'quvchi yo'q"}</b>"+ Yangi o'quvchi" tugmasi orqali ro'yxatga kiriting.</div>`;
+      $("#psc").textContent = sel.size ? `${sel.size} ta tanlandi` : "";
+    };
+    draw();
+    $("#psq").addEventListener("input", draw);
+    $("#psl").addEventListener("change", (e) => { const i = e.target; if (i.checked) sel.add(i.value); else sel.delete(i.value); $("#psc").textContent = sel.size ? `${sel.size} ta tanlandi` : ""; });
+    $("#psNew").onclick = () => studentModal({ groupId: g.id, onSaved: onDone });
+    $("#psOk").onclick = async () => {
+      if (!sel.size) { toast("Kamida bitta o'quvchini tanlang", true); return; }
+      await q(sb.from("group_students").insert([...sel].map((sid) => ({ group_id: g.id, student_id: sid }))));
+      toast(`${sel.size} ta o'quvchi guruhga qo'shildi`); closeModal(); onDone();
+    };
+  }
+
+  /* ================= O'QUVCHILAR ================= */
+  // student — tahrirlash uchun; groupId — yaratilgach shu guruhga qo'shiladi; leadId/courseHint — arizadan
+  async function studentModal({ student = null, values = {}, groupId = "", leadId = null, courseHint = "", title, onSaved } = {}) {
+    const isNew = !student;
+    let groupOpts = null;
+    if (isNew && !groupId) {
+      const gs = await q(sb.from("groups").select("id,name,course_id").eq("status", "active").order("name"));
+      groupOpts = { "": "— hozircha guruhsiz —", ...Object.fromEntries(gs.map((x) => [x.id, x.name + (courseOf(x.course_id).title ? " · " + courseOf(x.course_id).title : "")])) };
+      if (courseHint && !values.group_id) values.group_id = (gs.find((x) => x.course_id === courseHint) || {}).id || "";
+    }
+    formModal({
+      title: title || (isNew ? "Yangi o'quvchi" : "O'quvchini tahrirlash"),
+      values: isNew ? values : student,
+      fields: [
+        { group: [{ name: "full_name", label: "Ism familiya", required: true, placeholder: "Masalan: Xasanova Diyora" }, { name: "code", label: "Shaxsiy kod", disabled: !isNew, upper: true, pattern: "[A-Z0-9-]+", placeholder: "Avtomatik: MG-2001", help: isNew ? "Bo'sh qoldirsangiz, avtomatik beriladi. Saytda davomatni shu kod bilan ko'radi." : "Saytda davomatni shu kod bilan ko'radi" }] },
+        { group: [{ name: "phone", label: "Telefon", type: "tel", placeholder: "+998 90 123 45 67" }, { name: "parent_phone", label: "Ota-ona telefoni", type: "tel", placeholder: "+998 90 123 45 67" }] },
+        { group: [{ name: "birth_date", label: "Tug'ilgan sana", type: "date" }, ...(groupOpts ? [{ name: "group_id", label: "Guruhga qo'shish", type: "select", options: groupOpts }] : [])] },
+        { name: "note", label: "Izoh", type: "textarea", rows: 2 },
+      ],
+      onSave: async (v) => {
+        const gid = groupId || v.group_id; delete v.group_id;
+        if (isNew) {
+          if (!v.code) delete v.code;
+          if (leadId) v.lead_id = leadId;
+          const row = await q(sb.from("students").insert(v).select().single());
+          if (gid) await q(sb.from("group_students").insert({ group_id: gid, student_id: row.id }));
+          toast(`O'quvchi qo'shildi · kodi: ${row.code}${gid ? " · guruhga biriktirildi" : ""}`);
+        } else {
+          await q(sb.from("students").update(v).eq("id", student.id));
+          toast("Saqlandi");
+        }
+        onSaved && setTimeout(onSaved, 0);
+      },
+    });
+  }
+
+  async function viewStudents() {
+    if (!state.courses.length) await loadCourses();
+    const [rows, groups] = await Promise.all([
+      fetchAll(() => sb.from("students").select("*, group_students(group_id)").order("created_at", { ascending: false })),
+      q(sb.from("groups").select("id,name,status,course_id").order("start_date", { ascending: false })),
+    ]);
+    const gmap = Object.fromEntries(groups.map((x) => [x.id, x]));
+    const gids = (s) => (s.group_students || []).map((x) => x.group_id);
+    actions(`<button class="btn btn--ghost" id="csvS">⬇ Excel (CSV)</button><button class="btn btn--primary" id="addS">+ Yangi o'quvchi</button>`);
+    $("#view").innerHTML = `<div class="card">
+      <div class="toolbar"><input class="input" id="sq" placeholder="🔍 Ism, kod yoki telefon" />
+        <select class="input" id="sg"><option value="">Barcha guruhlar</option><option value="-">Guruhsizlar</option>${groups.map((x) => `<option value="${x.id}">${esc(x.name)}${x.status === "finished" ? " (yakunlangan)" : ""}</option>`).join("")}</select>
+        <span class="muted" id="scount" style="margin-left:auto;font-size:13px;font-weight:700"></span></div>
+      <div class="table-wrap"><table><thead><tr><th>Kod</th><th>Ism / telefon</th><th>Ota-ona</th><th>Guruhlar</th><th>Qo'shilgan</th><th></th></tr></thead><tbody id="stb"></tbody></table></div></div>`;
+    const draw = () => {
+      const qv = $("#sq").value.trim().toLowerCase(), gv = $("#sg").value;
+      const list = rows.filter((s) => (!gv || (gv === "-" ? !gids(s).length : gids(s).includes(gv))) && (!qv || `${s.full_name} ${s.code} ${s.phone || ""} ${s.parent_phone || ""}`.toLowerCase().includes(qv)));
+      $("#scount").textContent = `${list.length} ta`;
+      $("#stb").innerHTML = list.length ? list.map((s) => `<tr>
+        <td><b class="mono">${esc(s.code)}</b></td>
+        <td><b>${esc(s.full_name)}</b>${s.phone ? `<a class="sub" href="tel:${esc(s.phone.replace(/\s/g, ""))}">${esc(s.phone)}</a>` : ""}</td>
+        <td>${s.parent_phone ? esc(s.parent_phone) : '<span class="muted">—</span>'}</td>
+        <td>${gids(s).length ? gids(s).map((id) => gmap[id] ? `<a class="pill ${gmap[id].status === "active" ? "pill--done" : "pill--off"}" href="#group/${id}">${esc(gmap[id].name)}</a>` : "").join(" ") : '<span class="pill pill--contacted">Guruhsiz</span>'}</td>
+        <td style="white-space:nowrap">${longDay(s.created_at, { day: "numeric", month: "short", year: "numeric" })}</td>
+        <td><div class="actions"><button class="icon-btn" data-edit="${s.id}" title="Tahrirlash">✏️</button><button class="icon-btn del" data-del="${s.id}" title="O'chirish">🗑</button></div></td></tr>`).join("")
+        : `<tr><td colspan="6"><div class="empty"><b>O'quvchilar yo'q</b>"+ Yangi o'quvchi" tugmasi yoki guruh sahifasi orqali qo'shing.</div></td></tr>`;
+    };
+    draw();
+    ["#sq", "#sg"].forEach((s) => $(s).addEventListener("input", draw));
+    $("#addS").onclick = () => studentModal({ onSaved: viewStudents });
+    $("#csvS").onclick = () => downloadCSV("oquvchilar.csv", [["Kod", "Ism familiya", "Telefon", "Ota-ona telefoni", "Tug'ilgan sana", "Guruhlar", "Izoh"], ...rows.map((s) => [s.code, s.full_name, s.phone, s.parent_phone, s.birth_date, gids(s).map((id) => (gmap[id] || {}).name).filter(Boolean).join(", "), s.note])]);
+    $("#stb").onclick = async (e) => {
+      const ed = e.target.closest("[data-edit]"), dl = e.target.closest("[data-del]");
+      if (ed) studentModal({ student: rows.find((s) => s.id === ed.dataset.edit), onSaved: viewStudents });
+      if (dl) {
+        const s = rows.find((x) => x.id === dl.dataset.del);
+        if (!(await confirmDlg(`${s.full_name} (${s.code}) butunlay o'chiriladi: guruhlardagi a'zoligi va davomati ham o'chadi. Sertifikatlari saqlanib qoladi.`))) return;
+        await q(sb.from("students").delete().eq("id", s.id)); toast("O'chirildi"); viewStudents();
+      }
+    };
+  }
+
   /* ================= SERTIFIKATLAR ================= */
-  const TPL_DEFAULT = { heading: "CERTIFICATE", done: "kursini muvaffaqiyatli yakunladi", logos: ["", "", ""], signers: [{ name: "", title: "", image: "" }, { name: "", title: "", image: "" }] };
+  const TPL_DEFAULT = { heading: "CERTIFICATE", done: "kursini muvaffaqiyatli yakunladi", logos: ["", "", ""], signer: { name: "", title: "", image: "" } };
   async function loadTpl() {
     const row = await q(sb.from("settings").select("value").eq("key", "certificate").maybeSingle());
     const v = (row && row.value) || {};
-    return {
+    const t = {
       ...TPL_DEFAULT, ...v,
       logos: [0, 1, 2].map((i) => (v.logos || [])[i] || ""),
-      signers: [0, 1].map((i) => ({ ...TPL_DEFAULT.signers[i], ...((v.signers || [])[i] || {}) })),
+      // bitta imzo; eski shablonda (2 ta imzo) — 2-imzo olinadi
+      signer: { ...TPL_DEFAULT.signer, ...(window.Cert.signerOf(v) || {}) },
     };
+    delete t.signers;
+    return t;
   }
-  const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
 
-  async function previewCert(c, tpl) {
+  async function previewCert(c, tpl, onApprove) {
     const url = window.Cert.verifyUrl(c.number);
+    const pending = certState(c) === "pending";
     openModal(`<h3>Sertifikat №${esc(c.number)}</h3>
-      <div class="certmeta"><b>${esc(c.full_name)}</b><span>${esc(c.course)}</span><span>${longDay(c.issued_at, { day: "numeric", month: "long", year: "numeric" })}</span>${c.revoked ? '<span class="pill pill--rejected">Bekor qilingan</span>' : ""}</div>
+      <div class="certmeta"><b>${esc(c.full_name)}</b><span>${esc(c.course)}</span><span>${longDay(c.issued_at, { day: "numeric", month: "long", year: "numeric" })}</span><span class="pill ${CSTATUS[certState(c)][1]}">${CSTATUS[certState(c)][0]}</span>${c.attendance_pct != null ? `<span>Davomat: ${c.attendance_pct}%</span>` : ""}</div>
+      ${pending ? `<div class="tplhint">Bu sertifikat hali tasdiqlanmagan: QR havola ishlamaydi va yuklab olib bo'lmaydi. Tasdiqlangan kun sertifikatdagi sana bo'ladi.</div>` : ""}
       <div id="certPrev"></div>
-      <div class="certlink"><input class="input" readonly value="${esc(url)}" /><button class="btn btn--ghost btn--sm" id="cpy">Nusxalash</button><a class="btn btn--ghost btn--sm" href="${esc(url)}" target="_blank" rel="noopener">Ochish ↗</a></div>
-      <div class="modal__foot"><button class="btn btn--ghost" id="dlPng">🖼 PNG</button><button class="btn btn--primary" id="dlPdf">⬇ PDF yuklab olish</button></div>`, true);
+      ${pending ? "" : `<div class="certlink"><input class="input" readonly value="${esc(url)}" /><button class="btn btn--ghost btn--sm" id="cpy">Nusxalash</button><a class="btn btn--ghost btn--sm" href="${esc(url)}" target="_blank" rel="noopener">Ochish ↗</a></div>`}
+      <div class="modal__foot">${pending
+        ? `<button class="btn btn--ghost" data-close>Yopish</button><button class="btn btn--primary" id="cApprove">✅ Tasdiqlash va faollashtirish</button>`
+        : `<button class="btn btn--ghost" id="dlPng">🖼 PNG</button><button class="btn btn--primary" id="dlPdf">⬇ PDF yuklab olish</button>`}</div>`, true);
     await window.Cert.mount($("#certPrev"), c, tpl);
+    if (pending) { $("#cApprove").onclick = () => { closeModal(); onApprove && onApprove(); }; return; }
     $("#cpy").onclick = () => navigator.clipboard.writeText(url).then(() => toast("Havola nusxalandi"), () => toast("Nusxalab bo'lmadi", true));
     const dl = async (btn, type) => {
       const label = btn.textContent; btn.disabled = true; btn.textContent = "Tayyorlanmoqda..."; busy(true);
@@ -507,7 +942,7 @@
   function tplModal(tpl) {
     const values = { heading: tpl.heading, done: tpl.done };
     tpl.logos.forEach((u, i) => (values["logo" + i] = u));
-    tpl.signers.forEach((s, i) => { values[`s${i}name`] = s.name; values[`s${i}title`] = s.title; values[`s${i}image`] = s.image; });
+    Object.assign(values, { sname: tpl.signer.name, stitle: tpl.signer.title, simage: tpl.signer.image });
     formModal({
       title: "Sertifikat shabloni",
       values,
@@ -518,18 +953,15 @@
         { name: "logo0", label: "1-logotip", type: "image", folder: "cert" },
         { name: "logo1", label: "2-logotip", type: "image", folder: "cert" },
         { name: "logo2", label: "3-logotip", type: "image", folder: "cert" },
-        { type: "sub", label: "1-imzo (chap)" },
-        { group: [{ name: "s0name", label: "Ism-familiya" }, { name: "s0title", label: "Lavozimi" }] },
-        { name: "s0image", label: "Imzo va muhr rasmi", type: "image", folder: "cert" },
-        { type: "sub", label: "2-imzo (o'rta)" },
-        { group: [{ name: "s1name", label: "Ism-familiya" }, { name: "s1title", label: "Lavozimi" }] },
-        { name: "s1image", label: "Imzo va muhr rasmi", type: "image", folder: "cert" },
+        { type: "sub", label: "Imzo va muhr" },
+        { group: [{ name: "sname", label: "Ism-familiya", placeholder: "Abduganiev Sherdil" }, { name: "stitle", label: "Lavozimi", placeholder: "Director of \"IT Park Farg'ona\" LLC" }] },
+        { name: "simage", label: "Imzo va muhr rasmi", type: "image", folder: "cert" },
       ],
       onSave: async (v) => {
         const value = {
           heading: v.heading, done: v.done,
           logos: [v.logo0, v.logo1, v.logo2].map((x) => x || ""),
-          signers: [0, 1].map((i) => ({ name: v[`s${i}name`] || "", title: v[`s${i}title`] || "", image: v[`s${i}image`] || "" })),
+          signer: { name: v.sname || "", title: v.stitle || "", image: v.simage || "" },
         };
         await q(sb.from("settings").upsert({ key: "certificate", value, updated_at: new Date().toISOString() }));
         toast("Shablon saqlandi"); viewCerts();
@@ -537,65 +969,141 @@
     });
   }
 
-  async function viewCerts() {
-    if (!state.courses.length) await loadCourses();
-    const [rows, tpl] = await Promise.all([q(sb.from("certificates").select("*").order("created_at", { ascending: false }).limit(2000)), loadTpl()]);
-    actions(`<button class="btn btn--ghost" id="tplBtn">🎨 Shablon</button><button class="btn btn--primary" id="addCert">+ Yangi sertifikat</button>`);
-    const missing = !tpl.logos.some(Boolean) || !tpl.signers.every((s) => s.image);
-    $("#view").innerHTML = `${missing ? `<div class="tplhint">⚠️ Shablonga logotiplar va imzo/muhr rasmlari hali to'liq yuklanmagan — sertifikatlarda ular bo'sh chiqadi. "🎨 Shablon" tugmasi orqali markazning asl fayllarini yuklang.</div>` : ""}
-      <div class="card">
-        <div class="toolbar"><input class="input" id="cq" placeholder="🔍 Ism, kurs yoki raqam" /><span class="muted" id="ccount" style="margin-left:auto;font-size:13px;font-weight:700"></span></div>
-        <div class="table-wrap"><table><thead><tr><th>Raqam</th><th>F.I.Sh.</th><th>Kurs</th><th>Sana</th><th>Holat</th><th></th></tr></thead><tbody id="ctb"></tbody></table></div>
-      </div>`;
-    const draw = () => {
-      const qv = $("#cq").value.trim().toLowerCase();
-      const list = rows.filter((r) => !qv || `${r.number} ${r.full_name} ${r.course}`.toLowerCase().includes(qv));
-      $("#ccount").textContent = `${list.length} ta`;
-      $("#ctb").innerHTML = list.length ? list.map((r) => `<tr>
-        <td><b style="font-family:ui-monospace,monospace">${esc(r.number)}</b></td>
-        <td><b>${esc(r.full_name)}</b></td>
-        <td>${esc(r.course)}</td>
-        <td style="white-space:nowrap">${longDay(r.issued_at, { day: "2-digit", month: "short", year: "numeric" })}</td>
-        <td>${r.revoked ? '<span class="pill pill--rejected">Bekor qilingan</span>' : '<span class="pill pill--done">Amalda</span>'}</td>
-        <td><div class="actions">
-          <button class="icon-btn" data-show="${r.id}" title="Ko'rish va yuklab olish">👁</button>
-          <a class="icon-btn" href="${esc(window.Cert.verifyUrl(r.number))}" target="_blank" rel="noopener" title="Tekshirish sahifasini ochish">🔗</a>
-          <button class="icon-btn" data-revoke="${r.id}" title="${r.revoked ? "Qayta tiklash" : "Bekor qilish"}">${r.revoked ? "↩" : "⛔"}</button>
-          <button class="icon-btn del" data-del="${r.id}" title="O'chirish">🗑</button>
-        </div></td></tr>`).join("")
-        : `<tr><td colspan="6"><div class="empty"><b>Sertifikatlar yo'q</b>"+ Yangi sertifikat" tugmasi orqali yarating.</div></td></tr>`;
-    };
-    draw();
-    $("#cq").addEventListener("input", draw);
-    $("#tplBtn").onclick = () => tplModal(tpl);
-    $("#addCert").onclick = () => formModal({
+  // Qo'lda sertifikat: ism va kurs tizimdan (o'quvchi + guruh / kurs) olinadi
+  async function newCertModal(tpl) {
+    const [studs, links] = await Promise.all([
+      fetchAll(() => sb.from("students").select("id,code,full_name").order("full_name")),
+      fetchAll(() => sb.from("group_students").select("group_id,student_id,groups(id,name,course_id)")),
+    ]);
+    if (!studs.length) { toast("Avval O'quvchilar bo'limida o'quvchi qo'shing", true); return; }
+    const groupsOf = (sid) => links.filter((l) => l.student_id === sid && l.groups).map((l) => l.groups);
+    formModal({
       title: "Yangi sertifikat",
       values: { issued_at: today() },
       fields: [
-        { name: "full_name", label: "O'quvchining ism-familiyasi", required: true, placeholder: "Masalan: Törayev Raufbek" },
-        { name: "course", label: "Kurs nomi", type: "datalist", required: true, options: state.courses.map((c) => c.title), placeholder: "Masalan: Kompyuter savodxonligi", help: "Ro'yxatdan tanlang yoki o'zingiz yozing" },
+        { type: "hint", label: "Ism-familiya va kurs nomi tizimdagi ma'lumotdan olinadi. Ism xato bo'lsa, avval O'quvchilar bo'limida tuzating." },
+        { name: "student_id", label: "O'quvchi", type: "select", required: true, options: { "": "— o'quvchini tanlang —", ...Object.fromEntries(studs.map((x) => [x.id, `${x.full_name} · ${x.code}`])) } },
+        { group: [{ name: "group_id", label: "Guruh", type: "select", options: { "": "— guruhsiz —" } }, { name: "course_id", label: "Kurs", type: "select", options: courseOpts("— kursni tanlang —") }] },
         { name: "issued_at", label: "Berilgan sana", type: "date", required: true },
       ],
+      onOpen: (form) => {
+        const E = form.elements;
+        const prev = document.createElement("div"); prev.className = "certpick"; E.issued_at.closest(".field").before(prev);
+        const show = () => {
+          const st = studs.find((x) => x.id === E.student_id.value);
+          prev.innerHTML = st ? `Sertifikatda: <b>${esc(st.full_name)}</b> — <b>${esc(courseOf(E.course_id.value).title || "kurs tanlanmagan")}</b>` : "";
+        };
+        const syncGroup = () => {
+          const g = groupsOf(E.student_id.value).find((x) => x.id === E.group_id.value);
+          if (g) E.course_id.value = g.course_id || "";
+          E.course_id.disabled = !!g;
+          show();
+        };
+        E.student_id.addEventListener("change", () => {
+          const gs = groupsOf(E.student_id.value);
+          E.group_id.innerHTML = `<option value="">— guruhsiz —</option>` + gs.map((g) => `<option value="${esc(g.id)}">${esc(g.name)}${courseOf(g.course_id).title ? " · " + esc(courseOf(g.course_id).title) : ""}</option>`).join("");
+          if (gs.length) E.group_id.value = gs[0].id;
+          syncGroup();
+        });
+        E.group_id.addEventListener("change", syncGroup);
+        E.course_id.addEventListener("change", show);
+      },
       onSave: async (v) => {
-        const row = await q(sb.from("certificates").insert(v).select().single());
+        const st = studs.find((x) => x.id === v.student_id);
+        const course = courseOf(v.course_id).title;
+        if (!course) { toast("Kursni tanlang", true); throw new Error("course"); }
+        const row = { full_name: st.full_name, course, issued_at: v.issued_at, student_id: st.id, group_id: v.group_id || null };
+        if (row.group_id) {
+          const m = await fetchAll(() => sb.from("marks").select("status").eq("group_id", row.group_id).eq("student_id", st.id));
+          if (m.length) row.attendance_pct = Math.round(m.filter((x) => x.status !== 0).length / m.length * 100);
+        }
+        const saved = await q(sb.from("certificates").insert(row).select().single());
         toast("Sertifikat yaratildi");
+        state.cFilter = "";
         viewCerts();
-        setTimeout(() => previewCert(row, tpl), 350);
+        setTimeout(() => previewCert(saved, tpl), 350);
       },
     });
+  }
+
+  async function viewCerts() {
+    if (!state.courses.length) await loadCourses();
+    const [rows, tpl] = await Promise.all([fetchAll(() => sb.from("certificates").select("*").order("created_at", { ascending: false })), loadTpl()]);
+    // guruh nomlari (crm.sql bo'lmasa — jim o'tkazib yuboriladi)
+    const gr = await sb.from("groups").select("id,name");
+    const gname = Object.fromEntries(((!gr.error && gr.data) || []).map((x) => [x.id, x.name]));
+    const counts = { pending: 0, active: 0, revoked: 0 };
+    rows.forEach((r) => counts[certState(r)]++);
+    if (state.cFilter == null) state.cFilter = counts.pending ? "pending" : "";
+    const f = state.cFilter;
+    actions(`<button class="btn btn--ghost" id="tplBtn">🎨 Shablon</button><button class="btn btn--primary" id="addCert">+ Yangi sertifikat</button>`);
+    const missing = !tpl.logos.some(Boolean) || !tpl.signer.image;
+    $("#view").innerHTML = `${missing ? `<div class="tplhint">⚠️ Shablonga logotiplar va imzo/muhr rasmlari hali to'liq yuklanmagan — sertifikatlarda ular bo'sh chiqadi. "🎨 Shablon" tugmasi orqali markazning asl fayllarini yuklang.</div>` : ""}
+      ${counts.pending ? `<div class="tplhint">🎓 ${counts.pending} ta sertifikat tasdiqlashni kutmoqda. Ular guruh muddati tugaganda avtomatik yaratildi — tasdiqlanmaguncha QR orqali tekshirib bo'lmaydi va yuklab olinmaydi.</div>` : ""}
+      <div class="card">
+        <div class="toolbar">
+          <div class="seg" id="cSeg">${[["pending", "Kutilmoqda"], ["active", "Amalda"], ["revoked", "Bekor qilingan"], ["", "Hammasi"]].map(([k, t]) => `<button data-f="${k}" class="${k === f ? "is-active" : ""}">${t} · ${k ? counts[k] : rows.length}</button>`).join("")}</div>
+          <input class="input" id="cq" placeholder="🔍 Ism, kurs, guruh yoki raqam" />
+          <button class="btn btn--primary btn--sm" id="approveAll" hidden></button>
+          <span class="muted" id="ccount" style="margin-left:auto;font-size:13px;font-weight:700"></span>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Raqam</th><th>F.I.Sh.</th><th>Kurs / guruh</th><th class="num">Davomat</th><th>Sana</th><th>Holat</th><th></th></tr></thead><tbody id="ctb"></tbody></table></div>
+      </div>`;
+    let list = [];
+    const draw = () => {
+      const qv = $("#cq").value.trim().toLowerCase();
+      list = rows.filter((r) => (!f || certState(r) === f) && (!qv || `${r.number} ${r.full_name} ${r.course} ${gname[r.group_id] || ""}`.toLowerCase().includes(qv)));
+      $("#ccount").textContent = `${list.length} ta`;
+      const pend = list.filter((r) => certState(r) === "pending");
+      $("#approveAll").hidden = !pend.length;
+      $("#approveAll").textContent = `✅ Ko'rsatilganlarni tasdiqlash (${pend.length})`;
+      $("#ctb").innerHTML = list.length ? list.map((r) => { const st = certState(r); return `<tr>
+        <td><b class="mono">${esc(r.number)}</b></td>
+        <td><b>${esc(r.full_name)}</b></td>
+        <td>${esc(r.course)}${r.group_id && gname[r.group_id] ? `<a class="sub" href="#group/${r.group_id}">${esc(gname[r.group_id])}</a>` : ""}</td>
+        <td class="num">${r.attendance_pct == null ? '<span class="muted">—</span>' : `<span class="pct ${r.attendance_pct >= 85 ? "good" : "bad"}">${r.attendance_pct}%</span>`}</td>
+        <td style="white-space:nowrap">${longDay(r.issued_at, { day: "2-digit", month: "short", year: "numeric" })}</td>
+        <td><span class="pill ${CSTATUS[st][1]}">${CSTATUS[st][0]}</span></td>
+        <td><div class="actions">
+          ${st === "pending" ? `<button class="btn btn--primary btn--sm" data-approve="${r.id}">✅ Tasdiqlash</button>` : ""}
+          <button class="icon-btn" data-show="${r.id}" title="Ko'rish${st === "pending" ? "" : " va yuklab olish"}">👁</button>
+          ${st !== "pending" ? `<a class="icon-btn" href="${esc(window.Cert.verifyUrl(r.number))}" target="_blank" rel="noopener" title="Tekshirish sahifasini ochish">🔗</a>
+          <button class="icon-btn" data-revoke="${r.id}" title="${r.revoked ? "Qayta tiklash" : "Bekor qilish"}">${r.revoked ? "↩" : "⛔"}</button>` : ""}
+          <button class="icon-btn del" data-del="${r.id}" title="O'chirish">🗑</button>
+        </div></td></tr>`; }).join("")
+        : `<tr><td colspan="7"><div class="empty"><b>${f === "pending" ? "Tasdiqlash kutayotgan sertifikat yo'q" : "Sertifikatlar yo'q"}</b>${f === "pending" ? "Guruh muddati tugaganda sertifikatlar shu yerda paydo bo'ladi." : `"+ Yangi sertifikat" tugmasi orqali yarating.`}</div></td></tr>`;
+    };
+    draw();
+    $("#cq").addEventListener("input", draw);
+    $("#cSeg").onclick = (e) => { const b = e.target.closest("[data-f]"); if (b) { state.cFilter = b.dataset.f; viewCerts(); } };
+    // tasdiqlash: sertifikat faollashadi, berilgan sana — tasdiqlangan kun
+    const approve = async (items) => {
+      const ids = items.map((r) => r.id);
+      await q(sb.rpc("approve_certificates", { p_ids: ids }));
+      toast(ids.length > 1 ? `${ids.length} ta sertifikat tasdiqlandi va faollashdi` : "Sertifikat tasdiqlandi va faollashdi");
+      updateCertCount(); viewCerts();
+    };
+    $("#approveAll").onclick = async () => {
+      const pend = list.filter((r) => certState(r) === "pending");
+      if (!(await confirmDlg(`${pend.length} ta sertifikat tasdiqlanadi va QR orqali tekshirish mumkin bo'ladi. Davom etasizmi?`, "Ha, tasdiqlash"))) return;
+      approve(pend);
+    };
+    $("#tplBtn").onclick = () => tplModal(tpl);
+    $("#addCert").onclick = () => newCertModal(tpl);
     $("#ctb").onclick = async (e) => {
-      const sh = e.target.closest("[data-show]"), rv = e.target.closest("[data-revoke]"), dl = e.target.closest("[data-del]");
-      if (sh) previewCert(rows.find((r) => r.id === sh.dataset.show), tpl);
+      const sh = e.target.closest("[data-show]"), rv = e.target.closest("[data-revoke]"), dl = e.target.closest("[data-del]"), ap = e.target.closest("[data-approve]");
+      if (ap) approve([rows.find((r) => r.id === ap.dataset.approve)]);
+      if (sh) { const r = rows.find((x) => x.id === sh.dataset.show); previewCert(r, tpl, () => approve([r])); }
       if (rv) {
         const r = rows.find((x) => x.id === rv.dataset.revoke);
         await q(sb.from("certificates").update({ revoked: !r.revoked }).eq("id", r.id));
-        r.revoked = !r.revoked; draw(); toast(r.revoked ? "Sertifikat bekor qilindi — tekshirish sahifasida shunday ko'rinadi" : "Sertifikat qayta tiklandi");
+        r.revoked = !r.revoked; viewCerts(); toast(r.revoked ? "Sertifikat bekor qilindi — tekshirish sahifasida shunday ko'rinadi" : "Sertifikat qayta tiklandi");
       }
       if (dl) {
         const r = rows.find((x) => x.id === dl.dataset.del);
         if (!(await confirmDlg(`№${r.number} (${r.full_name}) sertifikati butunlay o'chiriladi va QR havolasi ishlamay qoladi. Faqat xato yaratilgan bo'lsa o'chiring, aks holda "Bekor qilish"dan foydalaning.`))) return;
         await q(sb.from("certificates").delete().eq("id", r.id));
-        rows.splice(rows.indexOf(r), 1); draw(); toast("O'chirildi");
+        updateCertCount(); viewCerts(); toast("O'chirildi");
       }
     };
   }
