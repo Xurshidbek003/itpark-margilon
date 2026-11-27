@@ -6,7 +6,7 @@
   <title>Sertifikatni tekshirish — IT Park Marg'ilon</title>
   <meta name="robots" content="noindex" />
   <meta name="theme-color" content="#ecfaf3" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2322c58b'/%3E%3Cpath d='M9 22V15M16 22V10M23 22v-5' stroke='white' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="icon" type="image/png" href="../images/favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Unbounded:wght@600&display=swap" rel="stylesheet" />
@@ -19,8 +19,7 @@
     .wrap { width: min(1080px, 100% - 32px); margin: 0 auto; padding: 22px 0 60px; }
     .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 26px; }
     .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; }
-    .brand i { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(140deg, #7ee8bf, var(--em)); display: grid; place-items: center; }
-    .brand svg { width: 22px; height: 22px; fill: none; stroke: #fff; stroke-width: 3.4; stroke-linecap: round; }
+    .brand img { width: 38px; height: 38px; object-fit: contain; display: block; }
     .brand small { display: block; font-size: 11px; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
     .site { font-weight: 700; font-size: 14px; color: var(--em-dark); }
     .status { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-radius: 18px; background: #fff; box-shadow: 0 10px 30px -18px rgba(27,42,36,.25); margin-bottom: 20px; }
@@ -49,7 +48,7 @@
 <body>
   <div class="wrap">
     <header class="top">
-      <a class="brand" href="../"><i><svg viewBox="0 0 32 32"><path d="M9 22V15M16 22V10M23 22v-5"/></svg></i><span>IT Park<small>Marg'ilon</small></span></a>
+      <a class="brand" href="../"><img src="../images/logo.png" alt="IT Park" width="38" height="38" /><span>IT Park<small>Marg'ilon</small></span></a>
       <a class="site" href="../">Saytga o'tish →</a>
     </header>
     <main id="main"><div class="loading">Sertifikat tekshirilmoqda...</div></main>

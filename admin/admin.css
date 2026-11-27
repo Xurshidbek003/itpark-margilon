@@ -22,8 +22,7 @@ code { background: var(--em-soft); color: var(--em-dark); padding: 1px 6px; bord
 
 /* brand */
 .brand { display: flex; align-items: center; gap: 11px; }
-.brand__mark { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(140deg, #7ee8bf, var(--em)); display: grid; place-items: center; flex: none; }
-.brand__mark svg { width: 24px; height: 24px; fill: none; stroke: #fff; stroke-width: 3.4; stroke-linecap: round; }
+.brand__mark { width: 40px; height: 40px; object-fit: contain; display: block; flex: none; }
 .brand b { display: block; font-family: var(--display); font-weight: 600; font-size: 15px; }
 .brand small { display: block; font-size: 11px; color: var(--muted); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 
